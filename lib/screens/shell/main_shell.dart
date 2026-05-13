@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
+import '../../providers/job_notifier.dart';
+import '../../models/job_status.dart';
 import '../home/home_screen.dart';
 import '../requests/requests_screen.dart';
 import '../history/history_screen.dart';
 import '../profile/profile_screen.dart';
 
-class MainShell extends StatefulWidget {
+class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
 
   @override
-  State<MainShell> createState() => _MainShellState();
+  ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends ConsumerState<MainShell> {
   int _currentIndex = 0;
 
   static const List<Widget> _screens = [
@@ -28,6 +31,14 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    // State-driven navigation: switch to Requests tab as soon as a request is live
+    ref.listen<JobState>(jobProvider, (previous, next) {
+      if (previous?.customerStatus == CustomerRequestStatus.idle &&
+          next.customerStatus != CustomerRequestStatus.idle) {
+        setState(() => _currentIndex = 1);
+      }
+    });
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,

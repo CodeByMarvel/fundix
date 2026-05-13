@@ -1,41 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../theme/app_colors.dart';
+import '../../../providers/mechanic_availability_provider.dart';
+import '../../../providers/job_notifier.dart';
+import '../../../models/job_status.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isOnline = ref.watch(mechanicIsOnlineProvider);
+    final jobState = ref.watch(jobProvider);
+    final hasActiveJob = jobState.mechanicJobStatus != MechanicJobStatus.idle;
 
-class _DashboardScreenState extends State<DashboardScreen> {
-  bool _isOnline = false;
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Dashboard',
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textDark,
-              ),
-            ),
-          ],
-        ),
+        title: const Text('Dashboard'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: CircleAvatar(
               radius: 20,
               backgroundColor: AppColors.primarySurface,
-              child: const Icon(Icons.notifications_outlined, color: AppColors.primary, size: 20),
+              child: const Icon(Icons.notifications_outlined,
+                  color: AppColors.primary, size: 20),
             ),
           ),
         ],
@@ -44,11 +34,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         children: [
           _OnlineToggle(
-            isOnline: _isOnline,
-            onToggle: (val) => setState(() => _isOnline = val),
+            isOnline: isOnline,
+            onToggle: (val) =>
+                ref.read(mechanicIsOnlineProvider.notifier).state = val,
           ),
+          if (hasActiveJob) ...[
+            const SizedBox(height: 16),
+            _ActiveJobBanner(jobState: jobState),
+          ],
           const SizedBox(height: 20),
-          _TodayStats(isOnline: _isOnline),
+          _TodayStats(isOnline: isOnline),
           const SizedBox(height: 20),
           const _RatingCard(),
           const SizedBox(height: 20),
@@ -58,6 +53,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Online / Offline toggle
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _OnlineToggle extends StatelessWidget {
   const _OnlineToggle({required this.isOnline, required this.onToggle});
@@ -104,13 +103,17 @@ class _OnlineToggle extends StatelessWidget {
                         color: Colors.white,
                         shape: BoxShape.circle,
                         boxShadow: isOnline
-                            ? [BoxShadow(color: Colors.white.withValues(alpha: 0.6), blurRadius: 6)]
+                            ? [
+                                BoxShadow(
+                                    color: Colors.white.withValues(alpha: 0.6),
+                                    blurRadius: 6)
+                              ]
                             : null,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      isOnline ? 'You\'re Online' : 'You\'re Offline',
+                      isOnline ? "You're Online" : "You're Offline",
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 20,
@@ -126,9 +129,7 @@ class _OnlineToggle extends StatelessWidget {
                       ? 'Accepting new job requests'
                       : 'Tap to start receiving jobs',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 13,
-                  ),
+                      color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
                 ),
               ],
             ),
@@ -147,14 +148,13 @@ class _OnlineToggle extends StatelessWidget {
               child: AnimatedAlign(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
-                alignment: isOnline ? Alignment.centerRight : Alignment.centerLeft,
+                alignment:
+                    isOnline ? Alignment.centerRight : Alignment.centerLeft,
                 child: Container(
                   width: 26,
                   height: 26,
                   decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
+                      color: Colors.white, shape: BoxShape.circle),
                 ),
               ),
             ),
@@ -165,6 +165,73 @@ class _OnlineToggle extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Active job banner (links to Jobs tab visually)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ActiveJobBanner extends StatelessWidget {
+  const _ActiveJobBanner({required this.jobState});
+  final JobState jobState;
+
+  String get _label {
+    switch (jobState.mechanicJobStatus) {
+      case MechanicJobStatus.received:
+        return 'New job request — respond now';
+      case MechanicJobStatus.enRoute:
+        return 'En route to customer';
+      case MechanicJobStatus.arrived:
+        return 'At location — waiting to start';
+      case MechanicJobStatus.awaitingStartConfirm:
+        return 'Waiting for customer to confirm start';
+      case MechanicJobStatus.serviceActive:
+        return 'Service in progress';
+      case MechanicJobStatus.submittingWorkProof:
+        return 'Submitting work proof';
+      case MechanicJobStatus.awaitingCustomerConfirm:
+        return 'Waiting for customer confirmation';
+      default:
+        return 'Active job';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border:
+            Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+                color: AppColors.primary, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(_label,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary)),
+          ),
+          const Text('Jobs tab →',
+              style: TextStyle(fontSize: 12, color: AppColors.primary)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Today's stats
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _TodayStats extends StatelessWidget {
   const _TodayStats({required this.isOnline});
   final bool isOnline;
@@ -174,15 +241,12 @@ class _TodayStats extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Today\'s Stats',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textDark,
-            letterSpacing: -0.2,
-          ),
-        ),
+        const Text('Today\'s Stats',
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textDark,
+                letterSpacing: -0.2)),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -253,22 +317,14 @@ class _StatCard extends StatelessWidget {
             child: Icon(icon, color: color, size: 18),
           ),
           const SizedBox(height: 10),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textDark,
-            ),
-          ),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark)),
           const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: AppColors.textGrey,
-            ),
-          ),
+          Text(label,
+              style: const TextStyle(fontSize: 11, color: AppColors.textGrey)),
         ],
       ),
     );
@@ -295,33 +351,27 @@ class _RatingCard extends StatelessWidget {
               color: AppColors.warning.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.star_rounded, color: AppColors.warning, size: 26),
+            child: const Icon(Icons.star_rounded,
+                color: AppColors.warning, size: 26),
           ),
           const SizedBox(width: 14),
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Your Rating',
-                  style: TextStyle(fontSize: 13, color: AppColors.textGrey),
-                ),
+                Text('Your Rating',
+                    style: TextStyle(fontSize: 13, color: AppColors.textGrey)),
                 SizedBox(height: 2),
-                Text(
-                  '—',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textDark,
-                  ),
-                ),
+                Text('—',
+                    style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark)),
               ],
             ),
           ),
-          const Text(
-            '0 reviews',
-            style: TextStyle(fontSize: 13, color: AppColors.textGrey),
-          ),
+          const Text('0 reviews',
+              style: TextStyle(fontSize: 13, color: AppColors.textGrey)),
         ],
       ),
     );
@@ -336,15 +386,12 @@ class _RecentActivitySection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Recent Activity',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textDark,
-            letterSpacing: -0.2,
-          ),
-        ),
+        const Text('Recent Activity',
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textDark,
+                letterSpacing: -0.2)),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(24),
@@ -353,25 +400,9 @@ class _RecentActivitySection extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.divider),
           ),
-          child: Center(
-            child: Column(
-              children: [
-                Icon(
-                  Icons.history_rounded,
-                  size: 36,
-                  color: AppColors.inactive,
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'No activity yet',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textGrey,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
+          child: const Center(
+            child: Text('No activity yet',
+                style: TextStyle(fontSize: 14, color: AppColors.textGrey)),
           ),
         ),
       ],

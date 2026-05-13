@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../theme/app_colors.dart';
+import '../../../providers/job_notifier.dart';
+import '../../../models/job_status.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../jobs/jobs_screen.dart';
 import '../earnings/earnings_screen.dart';
 import '../profile/mechanic_profile_screen.dart';
 
-class MechanicShell extends StatefulWidget {
+class MechanicShell extends ConsumerStatefulWidget {
   const MechanicShell({super.key});
 
   @override
-  State<MechanicShell> createState() => _MechanicShellState();
+  ConsumerState<MechanicShell> createState() => _MechanicShellState();
 }
 
-class _MechanicShellState extends State<MechanicShell> {
+class _MechanicShellState extends ConsumerState<MechanicShell> {
   int _currentIndex = 0;
 
   static const List<Widget> _screens = [
@@ -28,6 +31,14 @@ class _MechanicShellState extends State<MechanicShell> {
 
   @override
   Widget build(BuildContext context) {
+    // State-driven navigation: jump to Jobs tab when a job is dispatched
+    ref.listen<JobState>(jobProvider, (previous, next) {
+      if (previous?.mechanicJobStatus == MechanicJobStatus.idle &&
+          next.mechanicJobStatus == MechanicJobStatus.received) {
+        setState(() => _currentIndex = 1);
+      }
+    });
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,

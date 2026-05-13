@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'theme/app_theme.dart';
 import 'screens/dev/role_switcher.dart';
 
 void main() {
-  runApp(const FundixApp());
+  runApp(const ProviderScope(child: FundixApp()));
 }
 
 class FundixApp extends StatelessWidget {
