@@ -957,7 +957,7 @@ class _DoneView extends StatelessWidget {
             const SizedBox(height: 8),
             if (isDone && state.activeJob?.review != null)
               Text(
-                '${state.activeJob!.review!.stars} ⭐ · Thank you for your review',
+                '${state.activeJob!.review!.stars}  · Thank you for your review',
                 style: const TextStyle(
                     fontSize: 14, color: AppColors.textGrey),
               ),

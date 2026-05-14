@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../theme/app_colors.dart';
 import '../../dev/role_switcher.dart';
+import 'mechanic_settings_screen.dart';
 
 class MechanicProfileScreen extends StatelessWidget {
   const MechanicProfileScreen({super.key});
@@ -12,9 +13,11 @@ class MechanicProfileScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Profile'),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Icon(Icons.settings_outlined, color: AppColors.textGrey),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: AppColors.textGrey),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const MechanicSettingsScreen()),
+            ),
           ),
         ],
       ),
@@ -203,11 +206,7 @@ class _MechanicMenuSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const items = [
-      (Icons.directions_car_rounded, 'My Tools & Equipment', false),
-      (Icons.location_on_outlined, 'Service Area', false),
       (Icons.account_balance_outlined, 'Payout Settings', false),
-      (Icons.notifications_outlined, 'Notifications', false),
-      (Icons.help_outline_rounded, 'Help & Support', false),
       (Icons.logout_rounded, 'Sign Out', true),
     ];
 
