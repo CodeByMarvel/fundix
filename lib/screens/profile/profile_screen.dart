@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme_ext.dart';
+import '../../providers/locale_provider.dart';
 import '../dev/role_switcher.dart';
 import 'customer_settings_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lang = ref.watch(localeProvider);
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.bg,
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Text(t('profile', lang)),
+        backgroundColor: context.surface,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined, color: AppColors.textGrey),
+            icon: Icon(Icons.settings_outlined, color: context.textGrey),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const CustomerSettingsScreen()),
             ),
@@ -24,11 +29,11 @@ class ProfileScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         children: [
-          const _ProfileHero(),
+          _ProfileHero(lang: lang),
           const SizedBox(height: 28),
-          const _AccountMenu(),
+          _AccountMenu(lang: lang),
           const SizedBox(height: 12),
-          const _SignOutButton(),
+          _SignOutButton(lang: lang),
           const SizedBox(height: 12),
           _DevRoleSwitcherButton(),
         ],
@@ -38,7 +43,8 @@ class ProfileScreen extends StatelessWidget {
 }
 
 class _ProfileHero extends StatelessWidget {
-  const _ProfileHero();
+  const _ProfileHero({required this.lang});
+  final String lang;
 
   @override
   Widget build(BuildContext context) {
@@ -50,35 +56,35 @@ class _ProfileHero extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 46,
-              backgroundColor: AppColors.primarySurface,
+              backgroundColor: context.primarySurface,
               child: const Icon(Icons.person_rounded, size: 48, color: AppColors.primary),
             ),
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: context.surface,
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.divider, width: 1.5),
+                border: Border.all(color: context.divider, width: 1.5),
               ),
-              child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.textGrey),
+              child: Icon(Icons.edit_outlined, size: 14, color: context.textGrey),
             ),
           ],
         ),
         const SizedBox(height: 14),
-        const Text(
+        Text(
           'Your Name',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textDark),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: context.textDark),
         ),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           'customer@email.com',
-          style: TextStyle(fontSize: 13, color: AppColors.textGrey),
+          style: TextStyle(fontSize: 13, color: context.textGrey),
         ),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
           decoration: BoxDecoration(
-            color: AppColors.primarySurface,
+            color: context.primarySurface,
             borderRadius: BorderRadius.circular(20),
           ),
           child: const Text(
@@ -93,20 +99,21 @@ class _ProfileHero extends StatelessWidget {
 }
 
 class _AccountMenu extends StatelessWidget {
-  const _AccountMenu();
+  const _AccountMenu({required this.lang});
+  final String lang;
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      (Icons.directions_car_rounded, 'My Vehicles'),
-      (Icons.payment_outlined, 'Payment Methods'),
+    final items = [
+      (Icons.directions_car_rounded, t('my_vehicles', lang)),
+      (Icons.payment_outlined, t('payment_methods', lang)),
     ];
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: context.divider),
       ),
       child: Column(
         children: List.generate(items.length, (i) {
@@ -114,16 +121,16 @@ class _AccountMenu extends StatelessWidget {
           return Column(
             children: [
               ListTile(
-                leading: Icon(icon, color: AppColors.textGrey, size: 22),
+                leading: Icon(icon, color: context.textGrey, size: 22),
                 title: Text(
                   label,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textDark),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.textDark),
                 ),
-                trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.inactive, size: 20),
+                trailing: Icon(Icons.chevron_right_rounded, color: context.inactive, size: 20),
                 onTap: () {},
               ),
               if (i < items.length - 1)
-                const Divider(height: 1, indent: 56, color: AppColors.divider),
+                Divider(height: 1, indent: 56, color: context.divider),
             ],
           );
         }),
@@ -133,23 +140,49 @@ class _AccountMenu extends StatelessWidget {
 }
 
 class _SignOutButton extends StatelessWidget {
-  const _SignOutButton();
+  const _SignOutButton({required this.lang});
+  final String lang;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: context.divider),
       ),
       child: ListTile(
         leading: const Icon(Icons.logout_rounded, color: AppColors.error, size: 22),
-        title: const Text(
-          'Sign Out',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.error),
+        title: Text(
+          t('sign_out', lang),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.error),
         ),
-        onTap: () {},
+        onTap: () => _showSignOutDialog(context, lang),
+      ),
+    );
+  }
+
+  void _showSignOutDialog(BuildContext context, String lang) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(t('sign_out', lang)),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              minimumSize: Size.zero,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            onPressed: () => Navigator.pop(context),
+            child: Text(t('sign_out', lang)),
+          ),
+        ],
       ),
     );
   }
@@ -169,9 +202,9 @@ class _DevRoleSwitcherButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0xFF2D2D4E)),
         ),
-        child: Row(
+        child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
+          children: [
             Icon(Icons.swap_horiz_rounded, color: Color(0xFF7C7CFF), size: 18),
             SizedBox(width: 8),
             Text(

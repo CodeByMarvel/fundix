@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme_ext.dart';
 import '../../providers/job_notifier.dart';
+import '../../providers/locale_provider.dart';
 import '../../models/job_status.dart';
 import '../../models/mechanic_offer.dart';
 import '../../models/job.dart';
@@ -470,29 +475,370 @@ class _ConfirmingView extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stage 3: En Route
+// Stage 3: En Route — Live GPS Tracking
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _EnRouteView extends StatelessWidget {
+class _EnRouteView extends ConsumerStatefulWidget {
   const _EnRouteView({required this.job});
   final Job? job;
 
   @override
+  ConsumerState<_EnRouteView> createState() => _EnRouteViewState();
+}
+
+class _EnRouteViewState extends ConsumerState<_EnRouteView> {
+  double? _customerLat;
+  double? _customerLng;
+  String? _locationError;
+  bool _locationLoading = true;
+
+  // Simulated mechanic start: offset ~3 km from customer
+  double _mechLat = -1.3100;
+  double _mechLng = 36.8400;
+
+  Timer? _timer;
+  int _etaSeconds = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _etaSeconds = (widget.job?.assignedOffer?.etaMinutes ?? 10) * 60;
+    _getLocation();
+  }
+
+  Future<void> _getLocation() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) setState(() { _locationError = 'GPS disabled — enable location services.'; _locationLoading = false; });
+        return;
+      }
+
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+        if (mounted) setState(() { _locationError = 'Location permission denied.'; _locationLoading = false; });
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _customerLat = pos.latitude;
+        _customerLng = pos.longitude;
+        // Place mechanic ~3 km south-east of customer as starting point
+        _mechLat = pos.latitude - 0.025;
+        _mechLng = pos.longitude + 0.015;
+        _locationLoading = false;
+      });
+      _startTracking();
+    } catch (e) {
+      if (mounted) setState(() { _locationError = 'Location unavailable: $e'; _locationLoading = false; });
+    }
+  }
+
+  void _startTracking() {
+    _timer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_customerLat != null && _customerLng != null) {
+          final dLat = _customerLat! - _mechLat;
+          final dLng = _customerLng! - _mechLng;
+          final dist = sqrt(dLat * dLat + dLng * dLng);
+          // Move ~25 m per tick toward customer
+          const step = 0.00022;
+          if (dist > step) {
+            _mechLat += (dLat / dist) * step;
+            _mechLng += (dLng / dist) * step;
+          }
+        }
+        if (_etaSeconds > 2) _etaSeconds -= 2;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  double get _distanceKm {
+    if (_customerLat == null || _customerLng == null) return 0;
+    return Geolocator.distanceBetween(_mechLat, _mechLng, _customerLat!, _customerLng!) / 1000;
+  }
+
+  String get _etaLabel {
+    final mins = (_etaSeconds / 60).ceil();
+    return mins > 0 ? '$mins min' : 'Arriving';
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final lang = ref.watch(localeProvider);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _AssignedMechanicCard(job: job),
+        _AssignedMechanicCard(job: widget.job),
         const SizedBox(height: 16),
-        _StageInfoCard(
-          icon: Icons.directions_car_rounded,
-          color: AppColors.primary,
-          title: 'On the way',
-          subtitle: 'ETA: ${job?.assignedOffer?.etaMinutes ?? '—'} min · Live tracking coming soon',
+        _LiveTrackingCard(
+          lang: lang,
+          locationLoading: _locationLoading,
+          locationError: _locationError,
+          customerLat: _customerLat,
+          customerLng: _customerLng,
+          mechLat: _mechLat,
+          mechLng: _mechLng,
+          distanceKm: _distanceKm,
+          etaLabel: _etaLabel,
+          etaMinutes: widget.job?.assignedOffer?.etaMinutes ?? 10,
+          etaSecondsRemaining: _etaSeconds,
         ),
         const SizedBox(height: 16),
-        _UpdatesTimeline(updates: job?.updates ?? []),
+        _UpdatesTimeline(updates: widget.job?.updates ?? []),
       ],
+    );
+  }
+}
+
+class _LiveTrackingCard extends StatelessWidget {
+  const _LiveTrackingCard({
+    required this.lang,
+    required this.locationLoading,
+    required this.locationError,
+    required this.customerLat,
+    required this.customerLng,
+    required this.mechLat,
+    required this.mechLng,
+    required this.distanceKm,
+    required this.etaLabel,
+    required this.etaMinutes,
+    required this.etaSecondsRemaining,
+  });
+
+  final String lang;
+  final bool locationLoading;
+  final String? locationError;
+  final double? customerLat;
+  final double? customerLng;
+  final double mechLat;
+  final double mechLng;
+  final double distanceKm;
+  final String etaLabel;
+  final int etaMinutes;
+  final int etaSecondsRemaining;
+
+  double get _progress {
+    if (customerLat == null) return 0;
+    final totalSeconds = etaMinutes * 60;
+    final elapsed = totalSeconds - etaSecondsRemaining;
+    return (elapsed / totalSeconds).clamp(0.0, 1.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: context.primarySurface,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.gps_fixed_rounded, color: AppColors.primary, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                t('live_tracking', lang),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.textDark),
+              ),
+              const Spacer(),
+              if (!locationLoading && locationError == null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
+                      const SizedBox(width: 4),
+                      const Text('LIVE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          if (locationLoading)
+            Row(
+              children: [
+                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+                const SizedBox(width: 10),
+                Text('Acquiring GPS location…', style: TextStyle(fontSize: 13, color: context.textGrey)),
+              ],
+            )
+          else if (locationError != null)
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_off_rounded, color: AppColors.warning, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(locationError!, style: const TextStyle(fontSize: 12, color: AppColors.warning))),
+                ],
+              ),
+            )
+          else ...[
+            // ETA + Distance row
+            Row(
+              children: [
+                Expanded(
+                  child: _TrackingMetric(
+                    label: t('eta', lang),
+                    value: etaLabel,
+                    icon: Icons.access_time_rounded,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _TrackingMetric(
+                    label: t('distance', lang),
+                    value: '${distanceKm.toStringAsFixed(2)} km',
+                    icon: Icons.straighten_rounded,
+                    color: AppColors.success,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Journey progress bar
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(t('mechanic_location', lang), style: TextStyle(fontSize: 11, color: context.textGrey)),
+                    Text(t('your_location', lang), style: TextStyle(fontSize: 11, color: context.textGrey)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Stack(
+                  children: [
+                    Container(
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: context.divider,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    FractionallySizedBox(
+                      widthFactor: _progress,
+                      child: Container(
+                        height: 6,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppColors.primary, AppColors.success],
+                          ),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_rounded, color: AppColors.primary, size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${mechLat.toStringAsFixed(5)}, ${mechLng.toStringAsFixed(5)}',
+                      style: TextStyle(fontSize: 11, color: context.textLight, fontFamily: 'monospace'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    const Icon(Icons.my_location_rounded, color: AppColors.success, size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${customerLat!.toStringAsFixed(5)}, ${customerLng!.toStringAsFixed(5)}',
+                      style: TextStyle(fontSize: 11, color: context.textLight, fontFamily: 'monospace'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TrackingMetric extends StatelessWidget {
+  const _TrackingMetric({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(fontSize: 10, color: context.textGrey)),
+              Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.textDark)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

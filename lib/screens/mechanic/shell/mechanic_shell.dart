@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../theme/app_colors.dart';
+import '../../../theme/app_theme_ext.dart';
 import '../../../providers/job_notifier.dart';
+import '../../../providers/locale_provider.dart';
 import '../../../models/job_status.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../jobs/jobs_screen.dart';
@@ -31,7 +33,6 @@ class _MechanicShellState extends ConsumerState<MechanicShell> {
 
   @override
   Widget build(BuildContext context) {
-    // State-driven navigation: jump to Jobs tab when a job is dispatched
     ref.listen<JobState>(jobProvider, (previous, next) {
       if (previous?.mechanicJobStatus == MechanicJobStatus.idle &&
           next.mechanicJobStatus == MechanicJobStatus.received) {
@@ -52,7 +53,7 @@ class _MechanicShellState extends ConsumerState<MechanicShell> {
   }
 }
 
-class _MechanicNavBar extends StatelessWidget {
+class _MechanicNavBar extends ConsumerWidget {
   const _MechanicNavBar({
     required this.currentIndex,
     required this.onTap,
@@ -61,32 +62,29 @@ class _MechanicNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  static const _items = [
-    _NavItemData(icon: Icons.dashboard_rounded, label: 'Dashboard'),
-    _NavItemData(icon: Icons.handyman_rounded, label: 'Jobs'),
-    _NavItemData(icon: Icons.account_balance_wallet_rounded, label: 'Earnings'),
-    _NavItemData(icon: Icons.person_rounded, label: 'Profile'),
-  ];
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lang = ref.watch(localeProvider);
+    final items = [
+      _NavItemData(icon: Icons.dashboard_rounded, label: t('dashboard', lang)),
+      _NavItemData(icon: Icons.handyman_rounded, label: t('jobs', lang)),
+      _NavItemData(icon: Icons.account_balance_wallet_rounded, label: t('earnings', lang)),
+      _NavItemData(icon: Icons.person_rounded, label: t('profile', lang)),
+    ];
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: context.surface,
             borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: context.divider),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
+                color: Colors.black.withValues(alpha: context.isDark ? 0.3 : 0.08),
                 blurRadius: 24,
                 offset: const Offset(0, 6),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -94,9 +92,9 @@ class _MechanicNavBar extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(
-              _items.length,
+              items.length,
               (i) => _NavItem(
-                data: _items[i],
+                data: items[i],
                 isSelected: i == currentIndex,
                 onTap: () => onTap(i),
               ),
@@ -135,7 +133,7 @@ class _NavItem extends StatelessWidget {
         curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primarySurface : Colors.transparent,
+          color: isSelected ? context.primarySurface : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
@@ -147,7 +145,7 @@ class _NavItem extends StatelessWidget {
                 data.icon,
                 key: ValueKey(isSelected),
                 size: 24,
-                color: isSelected ? AppColors.primary : AppColors.inactive,
+                color: isSelected ? AppColors.primary : context.inactive,
               ),
             ),
             const SizedBox(height: 4),
@@ -156,7 +154,7 @@ class _NavItem extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                color: isSelected ? AppColors.primary : AppColors.inactive,
+                color: isSelected ? AppColors.primary : context.inactive,
                 letterSpacing: 0.1,
               ),
               child: Text(data.label),

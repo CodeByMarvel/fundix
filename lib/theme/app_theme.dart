@@ -72,6 +72,120 @@ class AppTheme {
         ),
         hintStyle: const TextStyle(color: AppColors.textLight, fontSize: 14),
       ),
+      dividerColor: AppColors.divider,
+      dialogTheme: const DialogThemeData(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+      ),
+    );
+  }
+
+  static ThemeData get dark {
+    const darkBg = Color(0xFF0D0D0F);
+    const darkSurface = Color(0xFF1A1A1F);
+    const darkText = Color(0xFFF0F0F0);
+    const darkTextGrey = Color(0xFF9CA3AF);
+    const darkDivider = Color(0xFF252530);
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: AppColors.primary,
+        brightness: Brightness.dark,
+        primary: AppColors.primary,
+        surface: darkSurface,
+        onSurface: darkText,
+      ),
+      scaffoldBackgroundColor: darkBg,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: darkSurface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+        ),
+        titleTextStyle: TextStyle(
+          color: darkText,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.3,
+        ),
+        iconTheme: IconThemeData(color: darkText),
+      ),
+      cardTheme: CardThemeData(
+        color: darkSurface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+          side: BorderSide(color: darkDivider, width: 1),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(14)),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: darkSurface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: const BorderSide(color: darkDivider),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: const BorderSide(color: darkDivider),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
+        hintStyle: const TextStyle(color: darkTextGrey, fontSize: 14),
+      ),
+      dividerColor: darkDivider,
+      dialogTheme: const DialogThemeData(
+        backgroundColor: darkSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+        titleTextStyle: TextStyle(
+          color: darkText,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+        ),
+        contentTextStyle: TextStyle(
+          color: darkTextGrey,
+          fontSize: 13,
+          height: 1.5,
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: darkSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+      ),
     );
   }
 }

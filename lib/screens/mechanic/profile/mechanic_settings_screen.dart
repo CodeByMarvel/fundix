@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../theme/app_colors.dart';
+import '../../../theme/app_theme_ext.dart';
+import '../../../providers/theme_provider.dart';
+import '../../../providers/locale_provider.dart';
 
-class MechanicSettingsScreen extends StatefulWidget {
+class MechanicSettingsScreen extends ConsumerStatefulWidget {
   const MechanicSettingsScreen({super.key});
 
   @override
-  State<MechanicSettingsScreen> createState() => _MechanicSettingsScreenState();
+  ConsumerState<MechanicSettingsScreen> createState() => _MechanicSettingsScreenState();
 }
 
-class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
+class _MechanicSettingsScreenState extends ConsumerState<MechanicSettingsScreen> {
   // Work Preferences
   bool _isOnline = true;
   bool _emergencyJobs = false;
@@ -33,16 +37,15 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
   bool _businessRegistered = false;
 
   // App Preferences
-  bool _darkMode = false;
-  String _language = 'English';
   String _dataUsage = 'Standard';
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.bg,
       appBar: AppBar(
         title: const Text('Settings'),
+        backgroundColor: context.surface,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
           onPressed: () => Navigator.of(context).pop(),
@@ -179,13 +182,6 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
               badge: _ComingSoonBadge(),
               onTap: () => _showComingSoonDialog(context, 'Two-Factor Authentication'),
             ),
-            _divider(),
-            _ActionTile(
-              icon: Icons.logout_rounded,
-              label: 'Logout from All Devices',
-              isDestructive: true,
-              onTap: () => _showLogoutAllDevicesDialog(context),
-            ),
           ]),
           const SizedBox(height: 20),
           _sectionLabel('Verification & Professional Information'),
@@ -283,21 +279,30 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
             _ToggleTile(
               icon: Icons.dark_mode_outlined,
               label: 'Dark Mode',
-              value: _darkMode,
-              onChanged: (v) => setState(() => _darkMode = v),
+              value: ref.watch(themeModeProvider) == ThemeMode.dark,
+              onChanged: (v) {
+                ref.read(themeModeProvider.notifier).state =
+                    v ? ThemeMode.dark : ThemeMode.light;
+              },
             ),
             _divider(),
             _NavTile(
               icon: Icons.language_outlined,
               label: 'Language',
-              value: _language,
-              onTap: () => _showOptionSheet(
-                context,
-                title: 'Language',
-                options: const ['English', 'Swahili'],
-                selected: _language,
-                onSelected: (v) => setState(() => _language = v),
-              ),
+              value: ref.watch(localeProvider) == 'sw' ? 'Swahili' : 'English',
+              onTap: () {
+                final currentLang = ref.read(localeProvider);
+                _showOptionSheet(
+                  context,
+                  title: 'Language',
+                  options: const ['English', 'Swahili'],
+                  selected: currentLang == 'sw' ? 'Swahili' : 'English',
+                  onSelected: (v) {
+                    ref.read(localeProvider.notifier).state =
+                        v == 'Swahili' ? 'sw' : 'en';
+                  },
+                );
+              },
             ),
             _divider(),
             _NavTile(
@@ -330,16 +335,16 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
         padding: const EdgeInsets.only(left: 4, bottom: 8),
         child: Text(
           text.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.8,
-            color: AppColors.textGrey,
+            color: context.textGrey,
           ),
         ),
       );
 
-  Widget _divider() => const Divider(height: 1, indent: 52, color: AppColors.divider);
+  Widget _divider() => Divider(height: 1, indent: 52, color: context.divider);
 
   // ─── Work Preferences ─────────────────────────────────────────────────────
 
@@ -867,37 +872,6 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
     );
   }
 
-  void _showLogoutAllDevicesDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Logout from All Devices', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        content: const Text(
-          'This will end all active sessions on every device, including this one. You will need to log in again.',
-          style: TextStyle(fontSize: 13, color: AppColors.textGrey, height: 1.5),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              minimumSize: Size.zero,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Logged out from all devices'), behavior: SnackBarBehavior.floating),
-              );
-            },
-            child: const Text('Logout All'),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ─── Verification & Professional Information ──────────────────────────────
 
   void _showVerificationSheet(
@@ -1387,9 +1361,9 @@ class _SettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(color: context.divider),
         ),
         child: Column(children: children),
       );
@@ -1415,9 +1389,9 @@ class _ToggleTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-        leading: Icon(icon, color: AppColors.textGrey, size: 22),
-        title: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textDark)),
-        subtitle: subtitle != null ? Text(subtitle!, style: const TextStyle(fontSize: 11, color: AppColors.textLight)) : null,
+        leading: Icon(icon, color: context.textGrey, size: 22),
+        title: Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.textDark)),
+        subtitle: subtitle != null ? Text(subtitle!, style: TextStyle(fontSize: 11, color: context.textLight)) : null,
         trailing: Switch(
           value: value,
           onChanged: onChanged,
@@ -1439,19 +1413,19 @@ class _NavTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-        leading: Icon(icon, color: AppColors.textGrey, size: 22),
+        leading: Icon(icon, color: context.textGrey, size: 22),
         title: Row(
           children: [
-            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textDark)),
+            Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.textDark)),
             if (badge != null) ...[const SizedBox(width: 8), badge!],
           ],
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (value != null) Text(value!, style: const TextStyle(fontSize: 12, color: AppColors.textGrey)),
+            if (value != null) Text(value!, style: TextStyle(fontSize: 12, color: context.textGrey)),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.inactive, size: 20),
+            Icon(Icons.chevron_right_rounded, color: context.inactive, size: 20),
           ],
         ),
         onTap: onTap,
@@ -1468,10 +1442,10 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isDestructive ? AppColors.error : AppColors.textDark;
+    final color = isDestructive ? AppColors.error : context.textDark;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      leading: Icon(icon, color: isDestructive ? AppColors.error : AppColors.textGrey, size: 22),
+      leading: Icon(icon, color: isDestructive ? AppColors.error : context.textGrey, size: 22),
       title: Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: color)),
       onTap: onTap,
     );
@@ -1557,14 +1531,14 @@ class _OptionSheetBody extends StatelessWidget {
               margin: const EdgeInsets.only(top: 10, bottom: 8),
               width: 36,
               height: 4,
-              decoration: BoxDecoration(color: AppColors.divider, borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(color: context.divider, borderRadius: BorderRadius.circular(2)),
             ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
+              child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: context.textDark)),
             ),
           ),
           ...options.map((opt) {
@@ -1576,7 +1550,7 @@ class _OptionSheetBody extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  color: isSelected ? AppColors.primary : AppColors.textDark,
+                  color: isSelected ? AppColors.primary : context.textDark,
                 ),
               ),
               trailing: isSelected ? const Icon(Icons.check_rounded, color: AppColors.primary, size: 18) : null,
