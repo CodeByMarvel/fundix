@@ -5,7 +5,7 @@ import '../../providers/job_notifier.dart';
 import '../../models/job_status.dart';
 import '../../models/mechanic_offer.dart';
 import '../../models/job.dart';
-import '../../models/auto_tagger.dart';
+import '../request_flow/request_creation_flow.dart';
 
 class RequestsScreen extends ConsumerWidget {
   const RequestsScreen({super.key});
@@ -16,7 +16,7 @@ class RequestsScreen extends ConsumerWidget {
 
     if (!jobState.hasActiveJob) {
       return _EmptyView(
-        onNewRequest: () => _showRequestSheet(context, ref),
+        onNewRequest: () => openRequestFlow(context),
       );
     }
 
@@ -1195,166 +1195,3 @@ class _UpdatesTimeline extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// New Request Bottom Sheet
-// ─────────────────────────────────────────────────────────────────────────────
-
-void _showRequestSheet(BuildContext context, WidgetRef ref,
-    {String? preselectedCategory}) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => _NewRequestSheet(
-      preselectedCategory: preselectedCategory,
-      onSubmit: (desc, car, cat, loc) =>
-          ref.read(jobProvider.notifier).submitRequest(
-                description: desc,
-                carType: car,
-                location: loc,
-                manualCategory: cat,
-              ),
-    ),
-  );
-}
-
-class _NewRequestSheet extends StatefulWidget {
-  const _NewRequestSheet({
-    this.preselectedCategory,
-    required this.onSubmit,
-  });
-  final String? preselectedCategory;
-  final void Function(String desc, String car, String? cat, String loc) onSubmit;
-
-  @override
-  State<_NewRequestSheet> createState() => _NewRequestSheetState();
-}
-
-class _NewRequestSheetState extends State<_NewRequestSheet> {
-  final _descController = TextEditingController();
-  final _carController = TextEditingController();
-  final _locationController =
-      TextEditingController(text: 'Nairobi, Kenya');
-  String? _selectedCategory;
-  String _autoDetected = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedCategory = widget.preselectedCategory;
-    if (widget.preselectedCategory != null) {
-      _descController.text = '${widget.preselectedCategory} issue';
-      _autoDetected = widget.preselectedCategory!;
-    }
-    _descController.addListener(_onDescChanged);
-  }
-
-  void _onDescChanged() {
-    final detected = AutoTagger.detect(_descController.text);
-    if (detected != _autoDetected) {
-      setState(() => _autoDetected = detected);
-      if (_selectedCategory == null) {
-        setState(() => _selectedCategory = detected);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _descController.dispose();
-    _carController.dispose();
-    _locationController.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    if (_descController.text.trim().isEmpty) return;
-    Navigator.of(context).pop();
-    widget.onSubmit(
-      _descController.text.trim(),
-      _carController.text.trim(),
-      _selectedCategory,
-      _locationController.text.trim(),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomPad = MediaQuery.of(context).viewInsets.bottom;
-    return Container(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomPad),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: AppColors.divider,
-                  borderRadius: BorderRadius.circular(2)),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text('Request a Mechanic',
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textDark)),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _descController,
-            decoration: InputDecoration(
-              hintText: 'Describe the problem…',
-              suffixIcon: _autoDetected.isNotEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.primarySurface,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(_autoDetected,
-                            style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600)),
-                      ),
-                    )
-                  : null,
-            ),
-            maxLines: 2,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _carController,
-            decoration: const InputDecoration(hintText: 'Car type (e.g. Toyota Corolla)'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _locationController,
-            decoration: const InputDecoration(
-              hintText: 'Location',
-              prefixIcon: Icon(Icons.location_on_outlined, size: 18),
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _descController.text.trim().isNotEmpty ? _submit : null,
-              child: const Text('Find Mechanic'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
