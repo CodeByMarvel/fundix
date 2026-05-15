@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../shell/main_shell.dart';
 import '../mechanic/shell/mechanic_shell.dart';
+import 'simulation_screen.dart';
 
 class RoleSwitcherScreen extends StatelessWidget {
   const RoleSwitcherScreen({super.key});
@@ -60,6 +61,16 @@ class RoleSwitcherScreen extends StatelessWidget {
                 accentColor: AppColors.success,
                 tags: const ['Accept Jobs', 'Earnings', 'Online/Offline'],
                 onTap: () => _switchTo(context, const MechanicShell()),
+              ),
+              const SizedBox(height: 16),
+              _RoleCard(
+                role: 'Simulate Full Job',
+                description:
+                    'Auto-play the complete 8-stage flow. Switch between customer and mechanic views in real-time.',
+                icon: Icons.play_circle_rounded,
+                accentColor: AppColors.warning,
+                tags: const ['Auto-Play', 'Both Sides', 'Real-time'],
+                onTap: () => _switchTo(context, const SimulationScreen()),
               ),
               const Spacer(),
               Center(

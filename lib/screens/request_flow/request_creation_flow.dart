@@ -448,7 +448,7 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
         ),
         const SizedBox(height: 2),
         const Text(
-          'Optional — most customers skip this',
+          'Optional',
           style: TextStyle(fontSize: 12, color: AppColors.textGrey),
         ),
         const SizedBox(height: 10),
