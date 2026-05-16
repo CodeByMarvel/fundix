@@ -78,7 +78,8 @@ class RequestsScreen extends ConsumerWidget {
           job: state.activeJob,
           jobState: state,
           onApprove: () => notifier.customerApprovesQuote(),
-          onReject: () => notifier.customerRejectsQuote(),
+          onRejectWithRevision: () => notifier.customerRejectsQuote(),
+          onEndWithInspectionFee: () => notifier.endWithInspectionFee(),
         );
 
       case CustomerRequestStatus.awaitingRevision:
@@ -364,19 +365,6 @@ class _OfferCard extends StatelessWidget {
                     ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('KES ${offer.priceEstimate}',
-                      style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textDark)),
-                  const Text('est.',
-                      style:
-                          TextStyle(fontSize: 11, color: AppColors.textGrey)),
-                ],
               ),
             ],
           ),
@@ -1009,13 +997,15 @@ class _QuoteReceivedView extends StatelessWidget {
     required this.job,
     required this.jobState,
     required this.onApprove,
-    required this.onReject,
+    required this.onRejectWithRevision,
+    required this.onEndWithInspectionFee,
   });
 
   final Job? job;
   final JobState jobState;
   final VoidCallback onApprove;
-  final VoidCallback onReject;
+  final VoidCallback onRejectWithRevision;
+  final VoidCallback onEndWithInspectionFee;
 
   @override
   Widget build(BuildContext context) {
@@ -1178,7 +1168,7 @@ class _QuoteReceivedView extends StatelessWidget {
 
         // Reject
         OutlinedButton(
-          onPressed: onReject,
+          onPressed: () => _showRejectOptions(context),
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.error,
             side: const BorderSide(color: AppColors.error),
@@ -1186,18 +1176,95 @@ class _QuoteReceivedView extends StatelessWidget {
           ),
           child: const Text('Reject Quote'),
         ),
-        const SizedBox(height: 8),
-        const Center(
-          child: Text(
-            'Rejecting will ask the mechanic to revise the diagnosis.\nYou may also end the session and pay only the inspection fee.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                fontSize: 12, color: AppColors.textGrey, height: 1.4),
-          ),
-        ),
         const SizedBox(height: 16),
         _UpdatesTimeline(updates: job?.updates ?? []),
       ],
+    );
+  }
+
+  void _showRejectOptions(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Reject this quote?',
+              style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Choose how you\'d like to proceed.',
+              style: TextStyle(fontSize: 13, color: AppColors.textGrey),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  onRejectWithRevision();
+                },
+                icon: const Icon(Icons.edit_note_rounded),
+                label: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Request a revised quote',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    Text('Mechanic revises diagnosis & resubmits',
+                        style:
+                            TextStyle(fontSize: 11, color: AppColors.textGrey)),
+                  ],
+                ),
+                style: OutlinedButton.styleFrom(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  onEndWithInspectionFee();
+                },
+                icon: const Icon(Icons.logout_rounded),
+                label: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('End session — pay inspection fee',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    Text('KES 300 · No repair charges apply',
+                        style:
+                            TextStyle(fontSize: 11, color: AppColors.textGrey)),
+                  ],
+                ),
+                style: OutlinedButton.styleFrom(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: AppColors.error),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -249,6 +249,30 @@ class JobNotifier extends StateNotifier<JobState> {
     );
   }
 
+  void endWithInspectionFee() {
+    if (state.customerStatus != CustomerRequestStatus.quoteReceived) return;
+    const inspectionFee = 300.0;
+    final now = DateTime.now();
+    final updatedJob = state.activeJob?.copyWith(
+      customerStatus: CustomerRequestStatus.paymentPending,
+      mechanicStatus: MechanicJobStatus.completed,
+      updates: [
+        ...?state.activeJob?.updates,
+        JobUpdate(
+          message: 'Session ended at inspection · KES 300 inspection fee',
+          timestamp: now,
+        ),
+      ],
+    );
+    state = JobState(
+      customerStatus: CustomerRequestStatus.paymentPending,
+      mechanicJobStatus: MechanicJobStatus.completed,
+      activeJob: updatedJob ?? state.activeJob,
+      generatedQuote: inspectionFee,
+    );
+    _processPayment();
+  }
+
   // ───────────────────────────────────────────────────────────────────────────
   // STAGE 6 — Repair in progress; mechanic marks complete
   // ───────────────────────────────────────────────────────────────────────────
