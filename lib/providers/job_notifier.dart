@@ -13,6 +13,9 @@ class JobState {
   final Job? activeJob;
   final List<MechanicOffer> pendingOffers;
   final bool isProcessing;
+  final String? diagnosisNotes;
+  final String? repairComplexity;
+  final double? generatedQuote;
 
   const JobState({
     this.customerStatus = CustomerRequestStatus.idle,
@@ -20,6 +23,9 @@ class JobState {
     this.activeJob,
     this.pendingOffers = const [],
     this.isProcessing = false,
+    this.diagnosisNotes,
+    this.repairComplexity,
+    this.generatedQuote,
   });
 
   bool get hasActiveJob => customerStatus.isActive && activeJob != null;
@@ -30,6 +36,9 @@ class JobState {
     Job? activeJob,
     List<MechanicOffer>? pendingOffers,
     bool? isProcessing,
+    String? diagnosisNotes,
+    String? repairComplexity,
+    double? generatedQuote,
   }) {
     return JobState(
       customerStatus: customerStatus ?? this.customerStatus,
@@ -37,6 +46,9 @@ class JobState {
       activeJob: activeJob ?? this.activeJob,
       pendingOffers: pendingOffers ?? this.pendingOffers,
       isProcessing: isProcessing ?? this.isProcessing,
+      diagnosisNotes: diagnosisNotes ?? this.diagnosisNotes,
+      repairComplexity: repairComplexity ?? this.repairComplexity,
+      generatedQuote: generatedQuote ?? this.generatedQuote,
     );
   }
 }
@@ -45,14 +57,14 @@ class JobNotifier extends StateNotifier<JobState> {
   JobNotifier() : super(const JobState());
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 1 — Request Creation
+  // STAGE 1 — Request Creation (Customer)
   // ───────────────────────────────────────────────────────────────────────────
 
   Future<void> submitRequest({
     required String description,
     required String carType,
     required String location,
-    String? manualCategory, // override auto-tag if user selected manually
+    String? manualCategory,
   }) async {
     final category = manualCategory ?? AutoTagger.detect(description);
     final minMinutes = AutoTagger.minimumMinutesFor(category);
@@ -82,7 +94,6 @@ class JobNotifier extends StateNotifier<JobState> {
       activeJob: job,
     );
 
-    // ─── STAGE 2: Smart Dispatch — rank top 3 mechanics ─────────────────────
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
@@ -92,12 +103,12 @@ class JobNotifier extends StateNotifier<JobState> {
       isProcessing: false,
     );
 
-    // Auto-assign best (highest rating) after 15s if customer doesn't pick
+    // Auto-assign top mechanic after 15s if customer doesn't pick
     Future.delayed(const Duration(seconds: 15), () {
       if (!mounted) return;
       if (state.customerStatus != CustomerRequestStatus.mechanicsResponding) return;
       if (state.pendingOffers.isEmpty) return;
-      selectMechanic(state.pendingOffers.first); // first = highest ranked
+      selectMechanic(state.pendingOffers.first);
     });
   }
 
@@ -115,18 +126,11 @@ class JobNotifier extends StateNotifier<JobState> {
       assignedOffer: offer,
       clearOffers: true,
     );
-
-    // Simulate mechanic accepting within window (2s for demo)
-    // In production: mechanic manually accepts in their app
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      if (state.mechanicJobStatus != MechanicJobStatus.received) return;
-      mechanicAcceptsJob();
-    });
+    // Mechanic manually accepts in their app — no auto-accept
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 3 — Mechanic En Route
+  // STAGE 2b — Mechanic accepts or rejects incoming request
   // ───────────────────────────────────────────────────────────────────────────
 
   void mechanicAcceptsJob() {
@@ -139,110 +143,151 @@ class JobNotifier extends StateNotifier<JobState> {
     );
   }
 
-  // Mechanic presses "Arrived" button
+  void mechanicRejectsJob() {
+    if (state.mechanicJobStatus != MechanicJobStatus.received) return;
+    final category = state.activeJob?.serviceCategory ?? 'General';
+
+    final updatedJob = state.activeJob?.copyWith(
+      mechanicStatus: MechanicJobStatus.idle,
+      updates: [
+        ...?state.activeJob?.updates,
+        JobUpdate(
+          message: 'Mechanic declined · Dispatching next available',
+          timestamp: DateTime.now(),
+        ),
+      ],
+    );
+
+    state = JobState(
+      customerStatus: CustomerRequestStatus.mechanicsResponding,
+      mechanicJobStatus: MechanicJobStatus.idle,
+      activeJob: updatedJob,
+      pendingOffers: _rankedOffers(category),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // STAGE 3 — Mechanic navigates; presses Confirm Arrival → inspection starts
+  // ───────────────────────────────────────────────────────────────────────────
+
   void mechanicArrived() {
     if (state.mechanicJobStatus != MechanicJobStatus.enRoute) return;
     _transition(
       customerStatus: CustomerRequestStatus.awaitingArrivalConfirm,
-      mechanicJobStatus: MechanicJobStatus.arrived,
-      message: 'Mechanic arrived — confirm to proceed',
+      mechanicJobStatus: MechanicJobStatus.inspecting,
+      message: 'Mechanic arrived · Inspection started',
     );
   }
 
-  // Customer confirms arrival
+  // Customer confirms they can see the mechanic (customer-side action)
   void customerConfirmsArrival() {
     if (state.customerStatus != CustomerRequestStatus.awaitingArrivalConfirm) return;
     _transition(
       customerStatus: CustomerRequestStatus.awaitingServiceStart,
-      mechanicJobStatus: MechanicJobStatus.awaitingStartConfirm,
-      message: 'Arrival confirmed',
+      mechanicJobStatus: state.mechanicJobStatus, // mechanic already inspecting
+      message: 'Arrival confirmed · Mechanic inspecting vehicle',
     );
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 4 — Dual-confirm Start (prevents fake/delayed starts)
+  // STAGE 4 — Inspection: mechanic writes diagnosis and submits
   // ───────────────────────────────────────────────────────────────────────────
 
-  // Mechanic taps "Start Service"
-  void mechanicStartsService() {
-    if (state.mechanicJobStatus != MechanicJobStatus.awaitingStartConfirm) return;
-    _transition(
-      customerStatus: CustomerRequestStatus.awaitingServiceStart,
-      mechanicJobStatus: MechanicJobStatus.serviceActive,
-      message: 'Mechanic started — waiting for your confirmation',
-    );
-  }
-
-  // Customer confirms start
-  void customerConfirmsStart() {
-    if (state.customerStatus != CustomerRequestStatus.awaitingServiceStart) return;
-    _transition(
-      customerStatus: CustomerRequestStatus.serviceActive,
-      mechanicJobStatus: MechanicJobStatus.serviceActive,
-      message: 'Service started — both confirmed',
-      serviceStartedNow: true,
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 6 — Work Proof (before mechanic can end)
-  // ───────────────────────────────────────────────────────────────────────────
-
-  void mechanicSubmitsWorkProof({
-    String? note,
-    bool checklistConfirmed = false,
+  void mechanicSubmitsDiagnosis({
+    required String notes,
+    required String complexity, // 'minor' | 'moderate' | 'major'
   }) {
-    if (state.mechanicJobStatus != MechanicJobStatus.serviceActive) return;
+    if (state.mechanicJobStatus != MechanicJobStatus.inspecting) return;
 
-    final proof = WorkProof(
-      mechanicNote: note,
-      checklistConfirmed: checklistConfirmed,
-      submittedAt: DateTime.now(),
-    );
-
+    final quote = _generateQuote(complexity);
     final updatedJob = state.activeJob?.copyWith(
-      workProof: proof,
-      customerStatus: CustomerRequestStatus.awaitingWorkProof,
-      mechanicStatus: MechanicJobStatus.submittingWorkProof,
+      mechanicStatus: MechanicJobStatus.quoteReady,
       updates: [
         ...?state.activeJob?.updates,
         JobUpdate(
-          message: 'Work proof submitted',
+          message: 'Diagnosis submitted · $complexity complexity · KES ${quote.toStringAsFixed(0)} estimated',
           timestamp: DateTime.now(),
         ),
       ],
     );
 
     state = state.copyWith(
-      customerStatus: CustomerRequestStatus.awaitingWorkProof,
-      mechanicJobStatus: MechanicJobStatus.submittingWorkProof,
+      mechanicJobStatus: MechanicJobStatus.quoteReady,
+      diagnosisNotes: notes,
+      repairComplexity: complexity,
+      generatedQuote: quote,
       activeJob: updatedJob,
     );
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 7 — Dual-confirm End
+  // STAGE 5 — Mechanic sends quote; customer approves or rejects
   // ───────────────────────────────────────────────────────────────────────────
 
-  // Mechanic presses "End Service"
-  void mechanicEndsService() {
-    if (state.mechanicJobStatus != MechanicJobStatus.submittingWorkProof) return;
+  void mechanicSendsQuote() {
+    if (state.mechanicJobStatus != MechanicJobStatus.quoteReady) return;
+    _transition(
+      customerStatus: CustomerRequestStatus.awaitingServiceStart,
+      mechanicJobStatus: MechanicJobStatus.awaitingQuoteApproval,
+      message: 'Quote sent to customer · KES ${state.generatedQuote?.toStringAsFixed(0) ?? '—'}',
+    );
+  }
+
+  // Called when customer approves the quote
+  void customerApprovesQuote() {
+    if (state.mechanicJobStatus != MechanicJobStatus.awaitingQuoteApproval) return;
+    _transition(
+      customerStatus: CustomerRequestStatus.awaitingWorkProof,
+      mechanicJobStatus: MechanicJobStatus.inRepair,
+      message: 'Quote approved · Repair started',
+      serviceStartedNow: true,
+    );
+  }
+
+  // Customer confirms "start" on their screen — mapped to quote approval
+  void customerConfirmsStart() {
+    customerApprovesQuote();
+  }
+
+  // Called when customer rejects the quote
+  void customerRejectsQuote() {
+    if (state.mechanicJobStatus != MechanicJobStatus.awaitingQuoteApproval) return;
+    _transition(
+      customerStatus: CustomerRequestStatus.awaitingServiceStart,
+      mechanicJobStatus: MechanicJobStatus.inspecting,
+      message: 'Quote rejected by customer · Revising diagnosis',
+    );
+    state = state.copyWith(
+      diagnosisNotes: null,
+      repairComplexity: null,
+      generatedQuote: null,
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // STAGE 6 — Repair in progress; mechanic marks complete
+  // ───────────────────────────────────────────────────────────────────────────
+
+  void mechanicCompletesRepair() {
+    if (state.mechanicJobStatus != MechanicJobStatus.inRepair) return;
     _transition(
       customerStatus: CustomerRequestStatus.verificationPending,
-      mechanicJobStatus: MechanicJobStatus.awaitingCustomerConfirm,
-      message: 'Work complete — please confirm',
+      mechanicJobStatus: MechanicJobStatus.awaitingCustomerVerification,
+      message: 'Repair complete · Awaiting customer verification',
     );
 
-    // Auto-confirm after 10 minutes if customer doesn't respond
-    // (10s in mock for demo purposes)
+    // Auto-confirm after 10 minutes if customer doesn't respond (10s in dev)
     Future.delayed(const Duration(seconds: 10), () {
       if (!mounted) return;
-      if (state.customerStatus != CustomerRequestStatus.verificationPending) return;
+      if (state.mechanicJobStatus != MechanicJobStatus.awaitingCustomerVerification) return;
       _autoConfirmCompletion();
     });
   }
 
-  // Customer confirms work is done
+  // ───────────────────────────────────────────────────────────────────────────
+  // STAGE 7 — Customer verifies; confirmed or disputed
+  // ───────────────────────────────────────────────────────────────────────────
+
   void customerConfirmsCompletion() {
     if (state.customerStatus != CustomerRequestStatus.verificationPending &&
         state.customerStatus != CustomerRequestStatus.autoConfirmCountdown) {
@@ -251,7 +296,16 @@ class JobNotifier extends StateNotifier<JobState> {
     _transition(
       customerStatus: CustomerRequestStatus.awaitingReview,
       mechanicJobStatus: MechanicJobStatus.completed,
-      message: 'Service confirmed complete',
+      message: 'Repair verified by customer · Payment processing',
+    );
+  }
+
+  void customerDisputesRepair() {
+    if (state.customerStatus != CustomerRequestStatus.verificationPending) return;
+    _transition(
+      customerStatus: CustomerRequestStatus.cancelled,
+      mechanicJobStatus: MechanicJobStatus.disputed,
+      message: 'Repair disputed · Admin reviewing',
     );
   }
 
@@ -264,7 +318,7 @@ class JobNotifier extends StateNotifier<JobState> {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 8 — Smart Review (feeds fraud detection)
+  // STAGE 8 — Review (customer rates mechanic)
   // ───────────────────────────────────────────────────────────────────────────
 
   void submitReview({
@@ -324,7 +378,7 @@ class JobNotifier extends StateNotifier<JobState> {
   void reset() => state = const JobState();
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Private
+  // Private helpers
   // ───────────────────────────────────────────────────────────────────────────
 
   void _transition({
@@ -353,10 +407,24 @@ class JobNotifier extends StateNotifier<JobState> {
       mechanicJobStatus: mechanicJobStatus,
       activeJob: updatedJob ?? state.activeJob,
       pendingOffers: clearOffers ? const [] : state.pendingOffers,
+      diagnosisNotes: state.diagnosisNotes,
+      repairComplexity: state.repairComplexity,
+      generatedQuote: state.generatedQuote,
     );
   }
 
-  // Ranked by: skill match > rating > distance (Stage 2 smart dispatch)
+  double _generateQuote(String complexity) {
+    switch (complexity.toLowerCase()) {
+      case 'minor':
+        return 800;
+      case 'major':
+        return 6500;
+      default: // moderate
+        return 2500;
+    }
+  }
+
+  // Ranked by: skill match > rating > distance
   List<MechanicOffer> _rankedOffers(String category) {
     final offers = [
       MechanicOffer(
@@ -391,7 +459,6 @@ class JobNotifier extends StateNotifier<JobState> {
       ),
     ];
 
-    // Sort: skill match first, then by rating desc
     offers.sort((a, b) {
       final aHasSkill = a.skills.contains(category) ? 0 : 1;
       final bHasSkill = b.skills.contains(category) ? 0 : 1;

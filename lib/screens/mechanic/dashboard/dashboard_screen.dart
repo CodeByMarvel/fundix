@@ -179,16 +179,18 @@ class _ActiveJobBanner extends StatelessWidget {
         return 'New job request — respond now';
       case MechanicJobStatus.enRoute:
         return 'En route to customer';
-      case MechanicJobStatus.arrived:
-        return 'At location — waiting to start';
-      case MechanicJobStatus.awaitingStartConfirm:
-        return 'Waiting for customer to confirm start';
-      case MechanicJobStatus.serviceActive:
-        return 'Service in progress';
-      case MechanicJobStatus.submittingWorkProof:
-        return 'Submitting work proof';
-      case MechanicJobStatus.awaitingCustomerConfirm:
-        return 'Waiting for customer confirmation';
+      case MechanicJobStatus.inspecting:
+        return 'Inspecting vehicle';
+      case MechanicJobStatus.quoteReady:
+        return 'Quote ready to send';
+      case MechanicJobStatus.awaitingQuoteApproval:
+        return 'Waiting for quote approval';
+      case MechanicJobStatus.inRepair:
+        return 'Repair in progress';
+      case MechanicJobStatus.awaitingCustomerVerification:
+        return 'Waiting for customer to verify';
+      case MechanicJobStatus.disputed:
+        return 'Job under review';
       default:
         return 'Active job';
     }

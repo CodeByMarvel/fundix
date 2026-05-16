@@ -1209,12 +1209,12 @@ class _QuickTap extends StatelessWidget {
                 style: const TextStyle(
                     fontSize: 14, color: AppColors.textDark))),
         _TapChip(
-            label: '✅ Yes',
+            label: 'YES',
             selected: value == true,
             onTap: () => onChanged(true)),
         const SizedBox(width: 8),
         _TapChip(
-            label: '❌ No',
+            label: 'NO',
             selected: value == false,
             onTap: () => onChanged(false)),
       ],

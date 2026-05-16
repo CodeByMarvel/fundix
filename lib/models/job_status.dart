@@ -35,14 +35,14 @@ enum CustomerRequestStatus {
 // Mechanic-facing lifecycle
 enum MechanicJobStatus {
   idle,
-  received, // dispatched, 15–30s acceptance window open
-  accepted,
-  enRoute,
-  arrived,
-  awaitingStartConfirm, // waiting for customer to confirm start
-  serviceActive,
-  submittingWorkProof,
-  awaitingCustomerConfirm, // waiting for customer to confirm end
+  received,                    // incoming request, accept/reject window open
+  enRoute,                     // navigating to customer
+  inspecting,                  // physical inspection + writing diagnosis
+  quoteReady,                  // diagnosis done, mechanic reviews quote
+  awaitingQuoteApproval,       // quote sent to customer, waiting
+  inRepair,                    // customer approved, repair in progress
+  awaitingCustomerVerification,// repair marked done, waiting customer
+  disputed,                    // customer disputed, admin reviewing
   completed,
 }
 
