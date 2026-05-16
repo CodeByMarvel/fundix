@@ -113,6 +113,8 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
     _selectedCategory = widget.preselectedCategory;
     _expandedCategory = widget.preselectedCategory;
 
+    _descController.addListener(() => setState(() {}));
+
     if (widget.preselectedVehicleId != null) {
       final vehicles = ref.read(vehicleProvider);
       try {
@@ -141,7 +143,7 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
             ? _selectedService != null
             : _selectedCategory != null;
       case 3:
-        return true; // description is optional
+        return _descController.text.trim().length >= 10;
       case 4:
         return _urgency != null;
       default:
@@ -229,7 +231,7 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
             ? 'What service do you need?'
             : "What's the problem?";
       case 3:
-        return 'Anything to add?';
+        return 'Describe what\'s happening';
       case 4:
         return 'How urgent is this?';
       default:
@@ -448,13 +450,14 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
         ),
         const SizedBox(height: 2),
         const Text(
-          'Optional',
+          'Required · minimum 10 characters',
           style: TextStyle(fontSize: 12, color: AppColors.textGrey),
         ),
         const SizedBox(height: 10),
         TextField(
           controller: _descController,
           maxLines: 4,
+          maxLength: 500,
           decoration: const InputDecoration(
             hintText: 'When did it start? Any sounds or warning lights?',
           ),

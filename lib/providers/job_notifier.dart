@@ -113,7 +113,7 @@ class JobNotifier extends StateNotifier<JobState> {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 2 — Customer picks (or auto-assigned)
+  // STAGE 2 — Customer picks mechanic (or auto-assigned)
   // ───────────────────────────────────────────────────────────────────────────
 
   void selectMechanic(MechanicOffer offer) {
@@ -126,7 +126,7 @@ class JobNotifier extends StateNotifier<JobState> {
       assignedOffer: offer,
       clearOffers: true,
     );
-    // Mechanic manually accepts in their app — no auto-accept
+    // Mechanic manually accepts from their app — no auto-accept
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -167,35 +167,25 @@ class JobNotifier extends StateNotifier<JobState> {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 3 — Mechanic navigates; presses Confirm Arrival → inspection starts
+  // STAGE 3 — Mechanic en route; presses Confirm Arrival → inspection starts
   // ───────────────────────────────────────────────────────────────────────────
 
   void mechanicArrived() {
     if (state.mechanicJobStatus != MechanicJobStatus.enRoute) return;
     _transition(
-      customerStatus: CustomerRequestStatus.awaitingArrivalConfirm,
+      customerStatus: CustomerRequestStatus.inspectionActive,
       mechanicJobStatus: MechanicJobStatus.inspecting,
       message: 'Mechanic arrived · Inspection started',
     );
   }
 
-  // Customer confirms they can see the mechanic (customer-side action)
-  void customerConfirmsArrival() {
-    if (state.customerStatus != CustomerRequestStatus.awaitingArrivalConfirm) return;
-    _transition(
-      customerStatus: CustomerRequestStatus.awaitingServiceStart,
-      mechanicJobStatus: state.mechanicJobStatus, // mechanic already inspecting
-      message: 'Arrival confirmed · Mechanic inspecting vehicle',
-    );
-  }
-
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 4 — Inspection: mechanic writes diagnosis and submits
+  // STAGE 4 — Inspection: mechanic writes diagnosis
   // ───────────────────────────────────────────────────────────────────────────
 
   void mechanicSubmitsDiagnosis({
     required String notes,
-    required String complexity, // 'minor' | 'moderate' | 'major'
+    required String complexity,
   }) {
     if (state.mechanicJobStatus != MechanicJobStatus.inspecting) return;
 
@@ -205,7 +195,8 @@ class JobNotifier extends StateNotifier<JobState> {
       updates: [
         ...?state.activeJob?.updates,
         JobUpdate(
-          message: 'Diagnosis submitted · $complexity complexity · KES ${quote.toStringAsFixed(0)} estimated',
+          message:
+              'Diagnosis submitted · $complexity complexity · KES ${quote.toStringAsFixed(0)} estimated',
           timestamp: DateTime.now(),
         ),
       ],
@@ -227,35 +218,29 @@ class JobNotifier extends StateNotifier<JobState> {
   void mechanicSendsQuote() {
     if (state.mechanicJobStatus != MechanicJobStatus.quoteReady) return;
     _transition(
-      customerStatus: CustomerRequestStatus.awaitingServiceStart,
+      customerStatus: CustomerRequestStatus.quoteReceived,
       mechanicJobStatus: MechanicJobStatus.awaitingQuoteApproval,
-      message: 'Quote sent to customer · KES ${state.generatedQuote?.toStringAsFixed(0) ?? '—'}',
+      message:
+          'Quote sent · KES ${state.generatedQuote?.toStringAsFixed(0) ?? '—'}',
     );
   }
 
-  // Called when customer approves the quote
   void customerApprovesQuote() {
     if (state.mechanicJobStatus != MechanicJobStatus.awaitingQuoteApproval) return;
     _transition(
-      customerStatus: CustomerRequestStatus.awaitingWorkProof,
+      customerStatus: CustomerRequestStatus.repairInProgress,
       mechanicJobStatus: MechanicJobStatus.inRepair,
       message: 'Quote approved · Repair started',
       serviceStartedNow: true,
     );
   }
 
-  // Customer confirms "start" on their screen — mapped to quote approval
-  void customerConfirmsStart() {
-    customerApprovesQuote();
-  }
-
-  // Called when customer rejects the quote
   void customerRejectsQuote() {
-    if (state.mechanicJobStatus != MechanicJobStatus.awaitingQuoteApproval) return;
+    if (state.customerStatus != CustomerRequestStatus.quoteReceived) return;
     _transition(
-      customerStatus: CustomerRequestStatus.awaitingServiceStart,
+      customerStatus: CustomerRequestStatus.awaitingRevision,
       mechanicJobStatus: MechanicJobStatus.inspecting,
-      message: 'Quote rejected by customer · Revising diagnosis',
+      message: 'Quote rejected · Mechanic revising diagnosis',
     );
     state = state.copyWith(
       diagnosisNotes: null,
@@ -271,39 +256,39 @@ class JobNotifier extends StateNotifier<JobState> {
   void mechanicCompletesRepair() {
     if (state.mechanicJobStatus != MechanicJobStatus.inRepair) return;
     _transition(
-      customerStatus: CustomerRequestStatus.verificationPending,
+      customerStatus: CustomerRequestStatus.completionVerification,
       mechanicJobStatus: MechanicJobStatus.awaitingCustomerVerification,
       message: 'Repair complete · Awaiting customer verification',
     );
 
-    // Auto-confirm after 10 minutes if customer doesn't respond (10s in dev)
-    Future.delayed(const Duration(seconds: 10), () {
+    // Auto-confirm after 10 minutes if customer doesn't respond
+    Future.delayed(const Duration(minutes: 10), () {
       if (!mounted) return;
-      if (state.mechanicJobStatus != MechanicJobStatus.awaitingCustomerVerification) return;
+      if (state.mechanicJobStatus != MechanicJobStatus.awaitingCustomerVerification) {
+        return;
+      }
       _autoConfirmCompletion();
     });
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 7 — Customer verifies; confirmed or disputed
+  // STAGE 7 — Customer verifies repair; payment triggered on confirm
   // ───────────────────────────────────────────────────────────────────────────
 
   void customerConfirmsCompletion() {
-    if (state.customerStatus != CustomerRequestStatus.verificationPending &&
-        state.customerStatus != CustomerRequestStatus.autoConfirmCountdown) {
-      return;
-    }
+    if (state.customerStatus != CustomerRequestStatus.completionVerification) return;
     _transition(
-      customerStatus: CustomerRequestStatus.awaitingReview,
+      customerStatus: CustomerRequestStatus.paymentPending,
       mechanicJobStatus: MechanicJobStatus.completed,
-      message: 'Repair verified by customer · Payment processing',
+      message: 'Repair verified · M-Pesa STK push sent',
     );
+    _processPayment();
   }
 
   void customerDisputesRepair() {
-    if (state.customerStatus != CustomerRequestStatus.verificationPending) return;
+    if (state.customerStatus != CustomerRequestStatus.completionVerification) return;
     _transition(
-      customerStatus: CustomerRequestStatus.cancelled,
+      customerStatus: CustomerRequestStatus.disputed,
       mechanicJobStatus: MechanicJobStatus.disputed,
       message: 'Repair disputed · Admin reviewing',
     );
@@ -311,14 +296,28 @@ class JobNotifier extends StateNotifier<JobState> {
 
   void _autoConfirmCompletion() {
     _transition(
-      customerStatus: CustomerRequestStatus.awaitingReview,
+      customerStatus: CustomerRequestStatus.paymentPending,
       mechanicJobStatus: MechanicJobStatus.completed,
-      message: 'Auto-confirmed after no response',
+      message: 'Auto-confirmed after no response · Payment processing',
     );
+    _processPayment();
+  }
+
+  // Simulates M-Pesa payment processing; resolves after 4 seconds
+  void _processPayment() {
+    Future.delayed(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      if (state.customerStatus != CustomerRequestStatus.paymentPending) return;
+      _transition(
+        customerStatus: CustomerRequestStatus.awaitingReview,
+        mechanicJobStatus: MechanicJobStatus.completed,
+        message: 'Payment successful · Earnings credited to mechanic',
+      );
+    });
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 8 — Review (customer rates mechanic)
+  // STAGE 8 — Customer rates mechanic
   // ───────────────────────────────────────────────────────────────────────────
 
   void submitReview({
@@ -343,7 +342,7 @@ class JobNotifier extends StateNotifier<JobState> {
       mechanicStatus: MechanicJobStatus.completed,
       updates: [
         ...?state.activeJob?.updates,
-        JobUpdate(message: 'Review submitted', timestamp: DateTime.now()),
+        JobUpdate(message: 'Review submitted · $stars ★', timestamp: DateTime.now()),
       ],
     );
 
@@ -419,7 +418,7 @@ class JobNotifier extends StateNotifier<JobState> {
         return 800;
       case 'major':
         return 6500;
-      default: // moderate
+      default:
         return 2500;
     }
   }
