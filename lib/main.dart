@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'theme/app_theme.dart';
 import 'providers/theme_provider.dart';
 import 'providers/locale_provider.dart';
-import 'screens/dev/role_switcher.dart';
+import 'screens/auth/auth_gate.dart';
 
 void main() {
   runApp(const ProviderScope(child: FundixApp()));
@@ -24,7 +24,7 @@ class FundixApp extends ConsumerWidget {
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
       locale: Locale(lang),
-      home: const RoleSwitcherScreen(),
+      home: const AuthGate(),
     );
   }
 }

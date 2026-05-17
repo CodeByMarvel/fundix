@@ -5,7 +5,10 @@
       "Bash(Select-Object FullName)",
       "Bash(ConvertTo-Csv -NoTypeInformation)",
       "Bash(Out-String -Width 1000)",
-      "Bash(grep -i \"\\\\.dart$\")"
+      "Bash(grep -i \"\\\\.dart$\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Joydoty\\\\Desktop\\\\fundix\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)"
     ]
   }
 }
