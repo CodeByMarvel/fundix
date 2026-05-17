@@ -27,23 +27,27 @@ class AuthResult {
 class AuthService {
   static const _storage = FlutterSecureStorage();
 
+  // ---------- public API ----------
+
   static Future<AuthResult> signIn(String email, String password) async {
+    final validationError = _validateCredentials(email, password);
+    if (validationError != null) return AuthResult.fail(validationError);
+
     try {
       final res = await http.post(
-        Uri.parse('${ClerkConfig.frontendApiUrl}/v1/client/sign_ins'),
+        Uri.parse('${AppConfig.clerkFrontendApiUrl}/v1/client/sign_ins'),
         headers: {
-          'Authorization': 'Bearer ${ClerkConfig.publishableKey}',
+          'Authorization': 'Bearer ${AppConfig.clerkPublishableKey}',
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: {
-          'identifier': email,
+          'identifier': email.trim().toLowerCase(),
           'strategy': 'password',
           'password': password,
         },
       );
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
-
       if (res.statusCode != 200) {
         return AuthResult.fail(_extractError(data, 'Incorrect email or password'));
       }
@@ -51,19 +55,17 @@ class AuthService {
       final signIn = data['response'] as Map<String, dynamic>;
       final status = signIn['status'] as String;
 
-      // Clerk may require a two-step flow when identifier is provided first
       if (status == 'needs_first_factor') {
         final signInId = signIn['id'] as String;
         final res2 = await http.post(
           Uri.parse(
-              '${ClerkConfig.frontendApiUrl}/v1/client/sign_ins/$signInId/attempt_first_factor'),
+              '${AppConfig.clerkFrontendApiUrl}/v1/client/sign_ins/$signInId/attempt_first_factor'),
           headers: {
-            'Authorization': 'Bearer ${ClerkConfig.publishableKey}',
+            'Authorization': 'Bearer ${AppConfig.clerkPublishableKey}',
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: {'strategy': 'password', 'password': password},
         );
-
         final data2 = jsonDecode(res2.body) as Map<String, dynamic>;
         if (res2.statusCode != 200) {
           return AuthResult.fail(_extractError(data2, 'Incorrect email or password'));
@@ -72,7 +74,6 @@ class AuthService {
       }
 
       if (status == 'complete') return _extractSession(data);
-
       return AuthResult.fail('Unexpected sign-in status: $status');
     } catch (e) {
       return AuthResult.fail('Connection error. Please try again.');
@@ -81,24 +82,36 @@ class AuthService {
 
   static Future<AuthResult> signUp(
       String email, String password, UserRole role) async {
-    try {
-      final metadata = jsonEncode({'role': role.name});
+    final validationError = _validateCredentials(email, password);
+    if (validationError != null) return AuthResult.fail(validationError);
 
+    try {
+      // SECURITY NOTE — unsafe_metadata is client-writable.
+      // This means any attacker can call the Clerk API directly and set
+      // role: 'mechanic' regardless of what they actually are.
+      //
+      // The correct fix (requires your backend):
+      //   1. Sign up without role metadata
+      //   2. Call POST /api/users/role on your backend with the JWT
+      //   3. Backend verifies the JWT with Clerk's secret key
+      //   4. Backend writes role to public_metadata via Clerk Backend API
+      //   5. Future JWTs carry the server-assigned role in public_metadata
+      //
+      // Once the backend exists, remove unsafe_metadata from this body entirely.
       final res = await http.post(
-        Uri.parse('${ClerkConfig.frontendApiUrl}/v1/client/sign_ups'),
+        Uri.parse('${AppConfig.clerkFrontendApiUrl}/v1/client/sign_ups'),
         headers: {
-          'Authorization': 'Bearer ${ClerkConfig.publishableKey}',
+          'Authorization': 'Bearer ${AppConfig.clerkPublishableKey}',
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: {
-          'email_address': email,
+          'email_address': email.trim().toLowerCase(),
           'password': password,
-          'unsafe_metadata': metadata,
+          'unsafe_metadata': jsonEncode({'role': role.name}),
         },
       );
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
-
       if (res.statusCode != 200) {
         return AuthResult.fail(_extractError(data, 'Sign up failed'));
       }
@@ -108,11 +121,10 @@ class AuthService {
 
       if (status == 'missing_requirements') {
         return AuthResult.fail(
-          'Email verification is on. Disable it in Clerk Dashboard:\n'
+          'Email verification is enabled. Disable it in Clerk Dashboard:\n'
           'User & Authentication → Email → Verification → None',
         );
       }
-
       if (status != 'complete') {
         return AuthResult.fail('Sign up status: $status');
       }
@@ -131,7 +143,7 @@ class AuthService {
       try {
         await http.delete(
           Uri.parse(
-              '${ClerkConfig.frontendApiUrl}/v1/client/sessions/$sessionId'),
+              '${AppConfig.clerkFrontendApiUrl}/v1/client/sessions/$sessionId'),
           headers: {'Authorization': 'Bearer $token'},
         );
       } catch (_) {}
@@ -140,7 +152,6 @@ class AuthService {
     await _storage.deleteAll();
   }
 
-  // Returns the stored user if the session is still valid, null otherwise.
   static Future<AppUser?> restoreSession() async {
     final token = await _storage.read(key: 'session_token');
     final userId = await _storage.read(key: 'user_id');
@@ -150,9 +161,12 @@ class AuthService {
 
     if (token == null || userId == null || email == null) return null;
 
+    // Validate the session is still live with Clerk.
+    // TODO: Replace this with a call to your own backend's /api/me endpoint,
+    // which verifies the JWT server-side and returns authoritative user data.
     try {
       final res = await http.get(
-        Uri.parse('${ClerkConfig.frontendApiUrl}/v1/me'),
+        Uri.parse('${AppConfig.clerkFrontendApiUrl}/v1/me'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (res.statusCode != 200) {
@@ -163,19 +177,25 @@ class AuthService {
       return null;
     }
 
-    final role =
-        roleStr == 'mechanic' ? UserRole.mechanic : UserRole.customer;
-    return AppUser(
-        id: userId, name: name ?? email, email: email, role: role);
+    final role = roleStr == 'mechanic' ? UserRole.mechanic : UserRole.customer;
+    return AppUser(id: userId, name: name ?? email, email: email, role: role);
   }
 
   static Future<String?> getSessionToken() =>
       _storage.read(key: 'session_token');
 
-  // --- private helpers ---
+  // ---------- private helpers ----------
 
-  static Future<AuthResult> _extractSession(
-      Map<String, dynamic> data) async {
+  static String? _validateCredentials(String email, String password) {
+    if (email.trim().isEmpty) return 'Email is required';
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.trim())) {
+      return 'Enter a valid email address';
+    }
+    if (password.length < 8) return 'Password must be at least 8 characters';
+    return null;
+  }
+
+  static Future<AuthResult> _extractSession(Map<String, dynamic> data) async {
     try {
       final client = data['client'] as Map<String, dynamic>;
       final sessions = client['sessions'] as List;
@@ -183,29 +203,30 @@ class AuthService {
       if (sessions.isEmpty) return AuthResult.fail('No active session');
 
       final session = sessions.first as Map<String, dynamic>;
-      final jwt =
-          (session['last_active_token'] as Map<String, dynamic>)['jwt']
-              as String;
+      final jwt = (session['last_active_token'] as Map<String, dynamic>)['jwt']
+          as String;
       final sessionId = session['id'] as String;
       final userMap = session['user'] as Map<String, dynamic>;
 
       final userId = userMap['id'] as String;
       final emails = userMap['email_addresses'] as List;
-      final email = (emails.first as Map<String, dynamic>)['email_address']
-          as String;
+      final email =
+          (emails.first as Map<String, dynamic>)['email_address'] as String;
       final firstName = (userMap['first_name'] as String?) ?? '';
       final lastName = (userMap['last_name'] as String?) ?? '';
       final name = '$firstName $lastName'.trim().isEmpty
           ? email.split('@').first
           : '$firstName $lastName'.trim();
+
+      // TODO: Once the backend sets public_metadata, read role from there:
+      //   final metadata = (userMap['public_metadata'] as Map<String, dynamic>?) ?? {};
       final metadata =
           (userMap['unsafe_metadata'] as Map<String, dynamic>?) ?? {};
       final roleStr = metadata['role'] as String? ?? 'customer';
       final role =
           roleStr == 'mechanic' ? UserRole.mechanic : UserRole.customer;
 
-      final user =
-          AppUser(id: userId, name: name, email: email, role: role);
+      final user = AppUser(id: userId, name: name, email: email, role: role);
 
       await Future.wait([
         _storage.write(key: 'session_id', value: sessionId),
@@ -222,8 +243,7 @@ class AuthService {
     }
   }
 
-  static String _extractError(
-      Map<String, dynamic> data, String fallback) {
+  static String _extractError(Map<String, dynamic> data, String fallback) {
     final errors = data['errors'] as List?;
     if (errors != null && errors.isNotEmpty) {
       return (errors.first as Map<String, dynamic>)['message'] as String? ??

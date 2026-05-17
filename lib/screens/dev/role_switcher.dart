@@ -1,9 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../shell/main_shell.dart';
 import '../mechanic/shell/mechanic_shell.dart';
 
+// This screen must never appear in a production build.
+// Always route through AuthGate in release mode.
 class RoleSwitcherScreen extends StatelessWidget {
+  static bool get isAvailable => kDebugMode;
   const RoleSwitcherScreen({super.key});
 
   void _switchTo(BuildContext context, Widget shell) {

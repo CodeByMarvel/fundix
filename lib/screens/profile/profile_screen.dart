@@ -34,8 +34,10 @@ class ProfileScreen extends ConsumerWidget {
           _AccountMenu(lang: lang),
           const SizedBox(height: 12),
           _SignOutButton(lang: lang),
-          const SizedBox(height: 12),
-          _DevRoleSwitcherButton(),
+          if (RoleSwitcherScreen.isAvailable) ...[
+            const SizedBox(height: 12),
+            _DevRoleSwitcherButton(),
+          ],
         ],
       ),
     );
