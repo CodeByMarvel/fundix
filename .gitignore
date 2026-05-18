@@ -1,6 +1,9 @@
 # Secrets — never commit
 .env
 
+# Node / backend
+backend/node_modules/
+
 # Miscellaneous
 *.class
 *.log
