@@ -181,20 +181,18 @@ class _SkillsSection extends ConsumerWidget {
               t('skills_specialties', lang),
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.textDark),
             ),
-            trailing: GestureDetector(
-              onTap: () => _showSkillsEditor(context, ref, skills),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  color: context.primarySurface,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'Edit',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
-                ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: context.primarySurface,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'Edit',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
               ),
             ),
+            onTap: () => _showSkillsEditor(context, ref, skills),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),

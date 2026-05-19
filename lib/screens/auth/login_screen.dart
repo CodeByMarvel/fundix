@@ -29,8 +29,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
 
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _error = 'Please fill in all fields');
+    if (email.isEmpty) {
+      setState(() => _error = 'Email is required');
+      return;
+    }
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      setState(() => _error = 'Enter a valid email address');
+      return;
+    }
+    if (password.isEmpty) {
+      setState(() => _error = 'Password is required');
+      return;
+    }
+    if (password.length < 8) {
+      setState(() => _error = 'Password must be at least 8 characters');
       return;
     }
 

@@ -1158,18 +1158,16 @@ class _NavTile extends StatelessWidget {
 class _ActionTile extends StatelessWidget {
   final IconData icon;
   final String label;
-  final bool isDestructive;
   final VoidCallback onTap;
 
-  const _ActionTile({required this.icon, required this.label, required this.onTap, this.isDestructive = false});
+  const _ActionTile({required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final color = isDestructive ? AppColors.error : context.textDark;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      leading: Icon(icon, color: isDestructive ? AppColors.error : context.textGrey, size: 22),
-      title: Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: color)),
+      leading: Icon(icon, color: context.textGrey, size: 22),
+      title: Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.textDark)),
       onTap: onTap,
     );
   }

@@ -5,6 +5,8 @@ import '../../../theme/app_theme_ext.dart';
 import '../../../providers/job_notifier.dart';
 import '../../../providers/locale_provider.dart';
 import '../../../models/job_status.dart';
+import '../../../providers/earnings_provider.dart';
+import '../../../providers/mechanic_availability_provider.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../jobs/jobs_screen.dart';
 import '../earnings/earnings_screen.dart';
@@ -29,14 +31,31 @@ class _MechanicShellState extends ConsumerState<MechanicShell> {
 
   void _onTabTapped(int index) {
     setState(() => _currentIndex = index);
+    ref.read(mechanicShellIndexProvider.notifier).state = index;
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(mechanicShellIndexProvider, (_, next) {
+      if (_currentIndex != next) setState(() => _currentIndex = next);
+    });
+
     ref.listen<JobState>(jobProvider, (previous, next) {
       if (previous?.mechanicJobStatus == MechanicJobStatus.idle &&
           next.mechanicJobStatus == MechanicJobStatus.received) {
         setState(() => _currentIndex = 1);
+      }
+      // Record earnings when M-Pesa payment clears
+      if (previous?.customerStatus == CustomerRequestStatus.paymentPending &&
+          next.customerStatus == CustomerRequestStatus.awaitingReview) {
+        final amount = next.generatedQuote;
+        final category = next.activeJob?.serviceCategory;
+        if (amount != null && category != null) {
+          ref.read(earningsProvider.notifier).recordJob(
+            amount: amount,
+            category: category,
+          );
+        }
       }
     });
 

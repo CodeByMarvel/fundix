@@ -5,6 +5,7 @@ import '../models/job_status.dart';
 import '../models/app_user.dart';
 import '../models/mechanic_offer.dart';
 import '../models/auto_tagger.dart';
+import 'mechanic_availability_provider.dart';
 
 @immutable
 class JobState {
@@ -54,7 +55,8 @@ class JobState {
 }
 
 class JobNotifier extends StateNotifier<JobState> {
-  JobNotifier() : super(const JobState());
+  JobNotifier(this._ref) : super(const JobState());
+  final Ref _ref;
 
   // ───────────────────────────────────────────────────────────────────────────
   // STAGE 1 — Request Creation (Customer)
@@ -117,6 +119,7 @@ class JobNotifier extends StateNotifier<JobState> {
   // ───────────────────────────────────────────────────────────────────────────
 
   void selectMechanic(MechanicOffer offer) {
+    if (!_ref.read(mechanicIsOnlineProvider)) return;
     if (state.customerStatus != CustomerRequestStatus.mechanicsResponding) return;
 
     _transition(
@@ -494,5 +497,5 @@ class JobNotifier extends StateNotifier<JobState> {
 }
 
 final jobProvider = StateNotifierProvider<JobNotifier, JobState>((ref) {
-  return JobNotifier();
+  return JobNotifier(ref);
 });

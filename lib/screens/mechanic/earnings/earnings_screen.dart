@@ -1,20 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../theme/app_colors.dart';
+import '../../../providers/earnings_provider.dart';
 
-class EarningsScreen extends StatefulWidget {
+class EarningsScreen extends ConsumerStatefulWidget {
   const EarningsScreen({super.key});
 
   @override
-  State<EarningsScreen> createState() => _EarningsScreenState();
+  ConsumerState<EarningsScreen> createState() => _EarningsScreenState();
 }
 
-class _EarningsScreenState extends State<EarningsScreen> {
+class _EarningsScreenState extends ConsumerState<EarningsScreen> {
   int _selectedPeriod = 0;
-
   static const _periods = ['Today', 'This Week', 'This Month'];
 
   @override
   Widget build(BuildContext context) {
+    final earnings = ref.watch(earningsProvider);
+
+    final txs = switch (_selectedPeriod) {
+      0 => earnings.today,
+      1 => earnings.thisWeek,
+      _ => earnings.thisMonth,
+    };
+
+    final total = earnings.totalFor(txs);
+    final jobCount = txs.length;
+    final avgLabel = jobCount == 0 ? '—' : _kes(total / jobCount);
+    final bestDayLabel = _bestDay(txs);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Earnings')),
@@ -27,16 +41,49 @@ class _EarningsScreenState extends State<EarningsScreen> {
             onSelect: (i) => setState(() => _selectedPeriod = i),
           ),
           const SizedBox(height: 16),
-          _EarningsSummaryCard(period: _periods[_selectedPeriod]),
+          _EarningsSummaryCard(
+            period: _periods[_selectedPeriod],
+            totalLabel: _kes(total),
+            jobCount: jobCount,
+            hoursLabel: _formatHours(jobCount * 45),
+          ),
           const SizedBox(height: 20),
-          const _BreakdownSection(),
+          _BreakdownSection(avgPerJob: avgLabel, bestDay: bestDayLabel ?? '—'),
           const SizedBox(height: 20),
-          const _TransactionList(),
+          _TransactionList(transactions: txs.reversed.toList()),
         ],
       ),
     );
   }
+
+  String _kes(double amount) {
+    final n = amount.round();
+    if (n >= 1000) {
+      return 'KES ${n ~/ 1000},${(n % 1000).toString().padLeft(3, '0')}';
+    }
+    return 'KES $n';
+  }
+
+  String _formatHours(int minutes) {
+    if (minutes == 0) return '0h';
+    if (minutes % 60 == 0) return '${minutes ~/ 60}h';
+    return '${minutes ~/ 60}h ${minutes % 60}m';
+  }
+
+  String? _bestDay(List<EarningsTransaction> txs) {
+    if (txs.isEmpty) return null;
+    final byDay = <int, double>{};
+    for (final t in txs) {
+      final wd = t.completedAt.weekday;
+      byDay[wd] = (byDay[wd] ?? 0) + t.amount;
+    }
+    final best = byDay.entries.reduce((a, b) => a.value > b.value ? a : b);
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days[best.key - 1];
+  }
 }
+
+// ── Period selector ───────────────────────────────────────────────────────────
 
 class _PeriodSelector extends StatelessWidget {
   const _PeriodSelector({
@@ -85,9 +132,20 @@ class _PeriodSelector extends StatelessWidget {
   }
 }
 
+// ── Summary card ──────────────────────────────────────────────────────────────
+
 class _EarningsSummaryCard extends StatelessWidget {
-  const _EarningsSummaryCard({required this.period});
+  const _EarningsSummaryCard({
+    required this.period,
+    required this.totalLabel,
+    required this.jobCount,
+    required this.hoursLabel,
+  });
+
   final String period;
+  final String totalLabel;
+  final int jobCount;
+  final String hoursLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -120,9 +178,9 @@ class _EarningsSummaryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'KES 0',
-            style: TextStyle(
+          Text(
+            totalLabel,
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 36,
               fontWeight: FontWeight.w800,
@@ -132,9 +190,15 @@ class _EarningsSummaryCard extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              _SummaryPill(label: '0 jobs', icon: Icons.handyman_rounded),
+              _SummaryPill(
+                label: '$jobCount ${jobCount == 1 ? 'job' : 'jobs'}',
+                icon: Icons.handyman_rounded,
+              ),
               const SizedBox(width: 10),
-              _SummaryPill(label: '0h worked', icon: Icons.access_time_rounded),
+              _SummaryPill(
+                label: '$hoursLabel worked',
+                icon: Icons.access_time_rounded,
+              ),
             ],
           ),
         ],
@@ -175,8 +239,13 @@ class _SummaryPill extends StatelessWidget {
   }
 }
 
+// ── Breakdown cards ───────────────────────────────────────────────────────────
+
 class _BreakdownSection extends StatelessWidget {
-  const _BreakdownSection();
+  const _BreakdownSection({required this.avgPerJob, required this.bestDay});
+
+  final String avgPerJob;
+  final String bestDay;
 
   @override
   Widget build(BuildContext context) {
@@ -185,7 +254,7 @@ class _BreakdownSection extends StatelessWidget {
         Expanded(
           child: _BreakdownCard(
             label: 'Avg per Job',
-            value: '—',
+            value: avgPerJob,
             icon: Icons.trending_up_rounded,
             color: AppColors.success,
           ),
@@ -194,7 +263,7 @@ class _BreakdownSection extends StatelessWidget {
         Expanded(
           child: _BreakdownCard(
             label: 'Best Day',
-            value: '—',
+            value: bestDay,
             icon: Icons.emoji_events_rounded,
             color: AppColors.warning,
           ),
@@ -237,22 +306,28 @@ class _BreakdownCard extends StatelessWidget {
             child: Icon(icon, color: color, size: 18),
           ),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textDark,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textDark,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(fontSize: 11, color: AppColors.textGrey),
-              ),
-            ],
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textGrey,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -260,8 +335,11 @@ class _BreakdownCard extends StatelessWidget {
   }
 }
 
+// ── Transaction list ──────────────────────────────────────────────────────────
+
 class _TransactionList extends StatelessWidget {
-  const _TransactionList();
+  const _TransactionList({required this.transactions});
+  final List<EarningsTransaction> transactions;
 
   @override
   Widget build(BuildContext context) {
@@ -278,21 +356,142 @@ class _TransactionList extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
+        if (transactions.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.divider),
+            ),
+            child: const Center(
+              child: Text(
+                'No transactions yet',
+                style: TextStyle(fontSize: 14, color: AppColors.textGrey),
+              ),
+            ),
+          )
+        else
+          ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.divider),
-          ),
-          child: const Center(
-            child: Text(
-              'No transactions yet',
-              style: TextStyle(fontSize: 14, color: AppColors.textGrey),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Column(
+                children: [
+                  for (var i = 0; i < transactions.length; i++) ...[
+                    if (i > 0)
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: AppColors.divider,
+                      ),
+                    _TransactionTile(tx: transactions[i]),
+                  ],
+                ],
+              ),
             ),
           ),
-        ),
       ],
+    );
+  }
+}
+
+class _TransactionTile extends StatelessWidget {
+  const _TransactionTile({required this.tx});
+  final EarningsTransaction tx;
+
+  String get _timeLabel {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final txDay = DateTime(
+        tx.completedAt.year, tx.completedAt.month, tx.completedAt.day);
+    final diff = today.difference(txDay).inDays;
+    final h = tx.completedAt.hour.toString().padLeft(2, '0');
+    final m = tx.completedAt.minute.toString().padLeft(2, '0');
+    final time = '$h:$m';
+    if (diff == 0) return 'Today · $time';
+    if (diff == 1) return 'Yesterday · $time';
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return '${days[tx.completedAt.weekday - 1]} · $time';
+  }
+
+  IconData get _icon {
+    switch (tx.category.toLowerCase()) {
+      case 'engine':
+        return Icons.settings_rounded;
+      case 'brake':
+        return Icons.disc_full_rounded;
+      case 'tire':
+        return Icons.tire_repair_rounded;
+      case 'electrical':
+        return Icons.bolt_rounded;
+      case 'battery':
+        return Icons.battery_charging_full_rounded;
+      default:
+        return Icons.build_rounded;
+    }
+  }
+
+  String _kes(double amount) {
+    final n = amount.round();
+    if (n >= 1000) {
+      return 'KES ${n ~/ 1000},${(n % 1000).toString().padLeft(3, '0')}';
+    }
+    return 'KES $n';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(_icon, color: AppColors.primary, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tx.category,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _timeLabel,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textGrey,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '+${_kes(tx.amount)}',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.success,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme_ext.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/locale_provider.dart';
 import '../../providers/vehicle_provider.dart';
+import '../../models/app_user.dart';
 import '../../models/vehicle.dart';
 import '../dev/role_switcher.dart';
 import 'customer_settings_screen.dart';
@@ -14,6 +16,7 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lang = ref.watch(localeProvider);
+    final user = ref.watch(authProvider).user;
     return Scaffold(
       backgroundColor: context.bg,
       appBar: AppBar(
@@ -31,7 +34,7 @@ class ProfileScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         children: [
-          _ProfileHero(lang: lang),
+          _ProfileHero(lang: lang, user: user),
           const SizedBox(height: 28),
           _AccountMenu(lang: lang),
           const SizedBox(height: 12),
@@ -47,11 +50,16 @@ class ProfileScreen extends ConsumerWidget {
 }
 
 class _ProfileHero extends StatelessWidget {
-  const _ProfileHero({required this.lang});
+  const _ProfileHero({required this.lang, required this.user});
   final String lang;
+  final AppUser? user;
 
   @override
   Widget build(BuildContext context) {
+    final displayName = user?.name ?? 'You';
+    final displayEmail = user?.email ?? '';
+    final roleLabel = user?.role == UserRole.mechanic ? 'Mechanic' : 'Customer';
+
     return Column(
       children: [
         const SizedBox(height: 16),
@@ -76,12 +84,12 @@ class _ProfileHero extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         Text(
-          'Your Name',
+          displayName,
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: context.textDark),
         ),
         const SizedBox(height: 4),
         Text(
-          'customer@email.com',
+          displayEmail,
           style: TextStyle(fontSize: 13, color: context.textGrey),
         ),
         const SizedBox(height: 10),
@@ -91,9 +99,9 @@ class _ProfileHero extends StatelessWidget {
             color: context.primarySurface,
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const Text(
-            'Customer',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
+          child: Text(
+            roleLabel,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
           ),
         ),
         const SizedBox(height: 4),
@@ -851,12 +859,12 @@ class _ChipSelector extends StatelessWidget {
 
 // ── Sign out & dev buttons ────────────────────────────────────────────────────
 
-class _SignOutButton extends StatelessWidget {
+class _SignOutButton extends ConsumerWidget {
   const _SignOutButton({required this.lang});
   final String lang;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         color: context.surface,
@@ -869,26 +877,32 @@ class _SignOutButton extends StatelessWidget {
           t('sign_out', lang),
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.error),
         ),
-        onTap: () => _showSignOutDialog(context, lang),
+        onTap: () => _showSignOutDialog(context, ref, lang),
       ),
     );
   }
 
-  void _showSignOutDialog(BuildContext context, String lang) {
+  void _showSignOutDialog(BuildContext context, WidgetRef ref, String lang) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(t('sign_out', lang)),
         content: const Text('Are you sure you want to sign out?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               minimumSize: Size.zero,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             ),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pop(context);
+              ref.read(authProvider.notifier).signOut();
+            },
             child: Text(t('sign_out', lang)),
           ),
         ],

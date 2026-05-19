@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../theme/app_colors.dart';
 import '../../../providers/mechanic_availability_provider.dart';
 import '../../../providers/job_notifier.dart';
+import '../../../providers/earnings_provider.dart';
 import '../../../models/job_status.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -169,7 +170,7 @@ class _OnlineToggle extends StatelessWidget {
 // Active job banner (links to Jobs tab visually)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ActiveJobBanner extends StatelessWidget {
+class _ActiveJobBanner extends ConsumerWidget {
   const _ActiveJobBanner({required this.jobState});
   final JobState jobState;
 
@@ -196,35 +197,44 @@ class _ActiveJobBanner extends StatelessWidget {
     }
   }
 
+  // Received → Incoming tab (0); any active stage → Active tab (1)
+  int get _jobsSubTab =>
+      jobState.mechanicJobStatus == MechanicJobStatus.received ? 0 : 1;
+
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border:
-            Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: const BoxDecoration(
-                color: AppColors.primary, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(_label,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primary)),
-          ),
-          const Text('Jobs tab →',
-              style: TextStyle(fontSize: 12, color: AppColors.primary)),
-        ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GestureDetector(
+      onTap: () {
+        ref.read(mechanicJobsTabIndexProvider.notifier).state = _jobsSubTab;
+        ref.read(mechanicShellIndexProvider.notifier).state = 1;
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                  color: AppColors.primary, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(_label,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary)),
+            ),
+            const Text('View →',
+                style: TextStyle(fontSize: 12, color: AppColors.primary)),
+          ],
+        ),
       ),
     );
   }
@@ -234,12 +244,24 @@ class _ActiveJobBanner extends StatelessWidget {
 // Today's stats
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _TodayStats extends StatelessWidget {
+class _TodayStats extends ConsumerWidget {
   const _TodayStats({required this.isOnline});
   final bool isOnline;
 
+  String _kes(double amount) {
+    final n = amount.round();
+    if (n >= 1000) {
+      return 'KES ${n ~/ 1000},${(n % 1000).toString().padLeft(3, '0')}';
+    }
+    return 'KES $n';
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final earnings = ref.watch(earningsProvider);
+    final jobs = earnings.jobsToday;
+    final total = earnings.totalToday;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -256,7 +278,7 @@ class _TodayStats extends StatelessWidget {
               child: _StatCard(
                 icon: Icons.handyman_rounded,
                 label: 'Jobs Done',
-                value: '0',
+                value: '$jobs',
                 color: AppColors.primary,
               ),
             ),
@@ -265,7 +287,7 @@ class _TodayStats extends StatelessWidget {
               child: _StatCard(
                 icon: Icons.account_balance_wallet_rounded,
                 label: 'Earned',
-                value: 'KES 0',
+                value: _kes(total),
                 color: AppColors.success,
               ),
             ),
