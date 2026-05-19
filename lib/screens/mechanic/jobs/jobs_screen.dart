@@ -105,13 +105,25 @@ class _IncomingTab extends ConsumerWidget {
   final JobState jobState;
   final bool isOnline;
 
+  bool get _hasOngoingJob =>
+      jobState.mechanicJobStatus != MechanicJobStatus.idle &&
+      jobState.mechanicJobStatus != MechanicJobStatus.received;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (!isOnline) {
       return const _EmptyState(
         icon: Icons.wifi_off_rounded,
         title: 'You\'re offline',
-        subtitle: 'Go Online from your Dashboard to receive job requests.',
+        subtitle: 'Turn on availability from your Dashboard to receive job requests.',
+      );
+    }
+
+    if (_hasOngoingJob) {
+      return const _EmptyState(
+        icon: Icons.handyman_rounded,
+        title: 'Job in progress',
+        subtitle: 'Complete your current job before accepting new requests.',
       );
     }
 
@@ -126,7 +138,7 @@ class _IncomingTab extends ConsumerWidget {
 
     return const _EmptyState(
       icon: Icons.inbox_rounded,
-      title: 'Waiting for requests',
+      title: 'Ready for requests',
       subtitle: 'You\'re online — new job requests will appear here instantly.',
     );
   }

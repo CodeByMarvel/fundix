@@ -77,13 +77,7 @@ class HomeScreen extends ConsumerWidget {
                     selectedId: selectedId,
                     onSelect: (id) =>
                         ref.read(selectedVehicleIdProvider.notifier).state = id,
-                    onAddVehicle: () =>
-                        ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Adding vehicles coming soon'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    ),
+                    onAddVehicle: () => openRequestFlow(context),
                   ),
                 ),
                 child: Container(
@@ -196,7 +190,7 @@ class HomeScreen extends ConsumerWidget {
               color: AppColors.success,
               onTap: () => openRequestFlow(
                 context,
-                preselectedType: 'routine',
+                preselectedType: 'service',
                 preselectedVehicleId: selectedVehicle?.id,
               ),
             ),
