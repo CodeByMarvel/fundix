@@ -300,8 +300,11 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
 
     if (widget.preselectedVehicleId != null) {
       final vehicles = ref.read(vehicleProvider);
+      final activeVehicleId = ref.read(jobProvider).activeVehicleId;
       try {
-        _selectedVehicle = vehicles.firstWhere((v) => v.id == widget.preselectedVehicleId);
+        final v = vehicles.firstWhere((v) => v.id == widget.preselectedVehicleId);
+        // Don't pre-select a vehicle that's already in an active service
+        if (v.id != activeVehicleId) _selectedVehicle = v;
       } catch (_) {}
     }
 
@@ -453,6 +456,7 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
           carType: _selectedVehicle?.displayName ?? 'Unknown vehicle',
           location: 'Nairobi, Kenya',
           manualCategory: manualCategory,
+          vehicleId: _selectedVehicle?.id,
         );
   }
 
@@ -668,19 +672,24 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
 
   Widget _buildVehicleStep() {
     final vehicles = ref.watch(vehicleProvider);
+    final activeVehicleId = ref.watch(jobProvider).activeVehicleId;
     return Column(
       children: [
         if (vehicles.isEmpty)
           _EmptyVehiclePrompt(onAdd: () => setState(() => _showVehicleForm = true))
         else ...[
-          ...vehicles.map((v) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _VehicleCard(
-                  vehicle: v,
-                  selected: _selectedVehicle?.id == v.id,
-                  onTap: () => setState(() => _selectedVehicle = v),
-                ),
-              )),
+          ...vehicles.map((v) {
+            final inService = v.id == activeVehicleId;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _VehicleCard(
+                vehicle: v,
+                selected: _selectedVehicle?.id == v.id,
+                isInService: inService,
+                onTap: inService ? null : () => setState(() => _selectedVehicle = v),
+              ),
+            );
+          }),
           _AddVehicleButton(onTap: () => setState(() => _showVehicleForm = true)),
         ],
       ],
@@ -1417,48 +1426,96 @@ class _TypeCard extends StatelessWidget {
 }
 
 class _VehicleCard extends StatelessWidget {
-  const _VehicleCard({required this.vehicle, required this.selected, required this.onTap});
+  const _VehicleCard({
+    required this.vehicle,
+    required this.selected,
+    required this.onTap,
+    this.isInService = false,
+  });
   final Vehicle vehicle;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool isInService;
 
   @override
   Widget build(BuildContext context) {
+    final effectiveColor = isInService ? AppColors.textGrey : AppColors.primary;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primarySurface : AppColors.surface,
+          color: isInService
+              ? AppColors.background
+              : (selected ? AppColors.primarySurface : AppColors.surface),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: selected ? AppColors.primary : AppColors.divider, width: selected ? 2 : 1),
+          border: Border.all(
+            color: isInService
+                ? AppColors.divider
+                : (selected ? AppColors.primary : AppColors.divider),
+            width: selected ? 2 : 1,
+          ),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: selected ? AppColors.primary.withValues(alpha: 0.12) : AppColors.background,
+                color: isInService
+                    ? AppColors.divider
+                    : (selected
+                        ? AppColors.primary.withValues(alpha: 0.12)
+                        : AppColors.background),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.directions_car_rounded,
-                  color: selected ? AppColors.primary : AppColors.textGrey, size: 22),
+                  color: isInService ? AppColors.textGrey : effectiveColor,
+                  size: 22),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(vehicle.displayName,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textDark)),
+                  Text(
+                    vehicle.displayName,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: isInService ? AppColors.textGrey : AppColors.textDark,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(vehicle.subtitle,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textGrey)),
+                  Text(
+                    isInService ? 'Currently in service' : vehicle.subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isInService ? AppColors.warning : AppColors.textGrey,
+                      fontWeight: isInService ? FontWeight.w500 : FontWeight.w400,
+                    ),
+                  ),
                 ],
               ),
             ),
-            if (selected) const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 22),
+            if (isInService)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'In service',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.warning),
+                ),
+              )
+            else if (selected)
+              const Icon(Icons.check_circle_rounded,
+                  color: AppColors.primary, size: 22),
           ],
         ),
       ),

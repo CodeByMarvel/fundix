@@ -17,6 +17,9 @@ class JobState {
   final String? diagnosisNotes;
   final String? repairComplexity;
   final double? generatedQuote;
+  // ID of the vehicle currently locked into an active service.
+  // Null when no job is active. Used by the home screen to block reuse.
+  final String? activeVehicleId;
 
   const JobState({
     this.customerStatus = CustomerRequestStatus.idle,
@@ -27,6 +30,7 @@ class JobState {
     this.diagnosisNotes,
     this.repairComplexity,
     this.generatedQuote,
+    this.activeVehicleId,
   });
 
   bool get hasActiveJob => customerStatus.isActive && activeJob != null;
@@ -40,6 +44,7 @@ class JobState {
     String? diagnosisNotes,
     String? repairComplexity,
     double? generatedQuote,
+    String? activeVehicleId,
   }) {
     return JobState(
       customerStatus: customerStatus ?? this.customerStatus,
@@ -50,6 +55,7 @@ class JobState {
       diagnosisNotes: diagnosisNotes ?? this.diagnosisNotes,
       repairComplexity: repairComplexity ?? this.repairComplexity,
       generatedQuote: generatedQuote ?? this.generatedQuote,
+      activeVehicleId: activeVehicleId ?? this.activeVehicleId,
     );
   }
 }
@@ -67,6 +73,7 @@ class JobNotifier extends StateNotifier<JobState> {
     required String carType,
     required String location,
     String? manualCategory,
+    String? vehicleId,
   }) async {
     final category = manualCategory ?? AutoTagger.detect(description);
     final minMinutes = AutoTagger.minimumMinutesFor(category);
@@ -94,6 +101,7 @@ class JobNotifier extends StateNotifier<JobState> {
       customerStatus: CustomerRequestStatus.searching,
       isProcessing: true,
       activeJob: job,
+      activeVehicleId: vehicleId,
     );
 
     await Future.delayed(const Duration(seconds: 2));
@@ -166,6 +174,7 @@ class JobNotifier extends StateNotifier<JobState> {
       mechanicJobStatus: MechanicJobStatus.idle,
       activeJob: updatedJob,
       pendingOffers: _rankedOffers(category),
+      activeVehicleId: state.activeVehicleId,
     );
   }
 
@@ -272,6 +281,7 @@ class JobNotifier extends StateNotifier<JobState> {
       mechanicJobStatus: MechanicJobStatus.completed,
       activeJob: updatedJob ?? state.activeJob,
       generatedQuote: inspectionFee,
+      activeVehicleId: state.activeVehicleId,
     );
     _processPayment();
   }
@@ -377,6 +387,7 @@ class JobNotifier extends StateNotifier<JobState> {
       customerStatus: CustomerRequestStatus.completed,
       mechanicJobStatus: MechanicJobStatus.completed,
       activeJob: updatedJob,
+      // activeVehicleId intentionally cleared — job is fully done
     );
   }
 
@@ -436,6 +447,7 @@ class JobNotifier extends StateNotifier<JobState> {
       diagnosisNotes: state.diagnosisNotes,
       repairComplexity: state.repairComplexity,
       generatedQuote: state.generatedQuote,
+      activeVehicleId: state.activeVehicleId,
     );
   }
 

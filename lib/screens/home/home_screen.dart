@@ -21,6 +21,10 @@ class HomeScreen extends ConsumerWidget {
             (v) => v.id == selectedId,
             orElse: () => vehicles.first,
           );
+    final activeVehicleId = jobState.activeVehicleId;
+    // True when a job is active AND the customer has only one car —
+    // no second vehicle to fall back on, so new requests are blocked entirely.
+    final singleCarBlocked = jobState.hasActiveJob && vehicles.length == 1;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -75,6 +79,7 @@ class HomeScreen extends ConsumerWidget {
                   builder: (_) => _VehicleSwitcherSheet(
                     vehicles: vehicles,
                     selectedId: selectedId,
+                    activeVehicleId: activeVehicleId,
                     onSelect: (id) =>
                         ref.read(selectedVehicleIdProvider.notifier).state = id,
                     onAddVehicle: () => openRequestFlow(context),
@@ -168,32 +173,82 @@ class HomeScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 14),
 
-            // ── Repair card ─────────────────────────────────────────────────
-            _ServiceTypeCard(
-              title: 'Repair Issue',
-              subtitle: "Something's wrong with your vehicle",
-              icon: Icons.warning_amber_rounded,
-              color: AppColors.error,
-              onTap: () => openRequestFlow(
-                context,
-                preselectedType: 'repair',
-                preselectedVehicleId: selectedVehicle?.id,
+            if (singleCarBlocked) ...[
+              // ── Single-car block ──────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                      color: AppColors.warning.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.build_circle_outlined,
+                          color: AppColors.warning, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Vehicle currently in service',
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textDark),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'New requests are unavailable while your car is being serviced. Add another vehicle or wait until the current job is complete.',
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textGrey,
+                                height: 1.4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
+            ] else ...[
+              // ── Repair card ───────────────────────────────────────────────
+              _ServiceTypeCard(
+                title: 'Repair Issue',
+                subtitle: "Something's wrong with your vehicle",
+                icon: Icons.warning_amber_rounded,
+                color: AppColors.error,
+                onTap: () => openRequestFlow(
+                  context,
+                  preselectedType: 'repair',
+                  preselectedVehicleId: selectedVehicle?.id,
+                ),
+              ),
+              const SizedBox(height: 12),
 
-            // ── Routine card ────────────────────────────────────────────────
-            _ServiceTypeCard(
-              title: 'Routine Service',
-              subtitle: 'Scheduled maintenance & inspections',
-              icon: Icons.build_circle_outlined,
-              color: AppColors.success,
-              onTap: () => openRequestFlow(
-                context,
-                preselectedType: 'service',
-                preselectedVehicleId: selectedVehicle?.id,
+              // ── Routine card ──────────────────────────────────────────────
+              _ServiceTypeCard(
+                title: 'Routine Service',
+                subtitle: 'Scheduled maintenance & inspections',
+                icon: Icons.build_circle_outlined,
+                color: AppColors.success,
+                onTap: () => openRequestFlow(
+                  context,
+                  preselectedType: 'service',
+                  preselectedVehicleId: selectedVehicle?.id,
+                ),
               ),
-            ),
+            ],
             const SizedBox(height: 28),
 
             // ── Recent requests ─────────────────────────────────────────────
@@ -222,10 +277,12 @@ class _VehicleSwitcherSheet extends StatelessWidget {
     required this.selectedId,
     required this.onSelect,
     required this.onAddVehicle,
+    this.activeVehicleId,
   });
 
   final List<Vehicle> vehicles;
   final String? selectedId;
+  final String? activeVehicleId;
   final ValueChanged<String> onSelect;
   final VoidCallback onAddVehicle;
 
@@ -245,65 +302,95 @@ class _VehicleSwitcherSheet extends StatelessWidget {
                 color: AppColors.textDark),
           ),
           const SizedBox(height: 16),
-          ...vehicles.map((v) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: GestureDetector(
-                  onTap: () {
-                    onSelect(v.id);
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: v.id == selectedId
-                          ? AppColors.primarySurface
-                          : AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: v.id == selectedId
-                            ? AppColors.primary
-                            : AppColors.divider,
-                        width: v.id == selectedId ? 2 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.directions_car_rounded,
-                          color: v.id == selectedId
-                              ? AppColors.primary
-                              : AppColors.textGrey,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                v.displayName,
-                                style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textDark),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                v.subtitle,
-                                style: const TextStyle(
-                                    fontSize: 12, color: AppColors.textGrey),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (v.id == selectedId)
-                          const Icon(Icons.check_circle_rounded,
-                              color: AppColors.primary, size: 20),
-                      ],
+          ...vehicles.map((v) {
+            final inService = v.id == activeVehicleId;
+            final isSelected = v.id == selectedId;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: GestureDetector(
+                onTap: inService
+                    ? null
+                    : () {
+                        onSelect(v.id);
+                        Navigator.pop(context);
+                      },
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: inService
+                        ? AppColors.background
+                        : (isSelected
+                            ? AppColors.primarySurface
+                            : AppColors.surface),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: inService
+                          ? AppColors.divider
+                          : (isSelected ? AppColors.primary : AppColors.divider),
+                      width: isSelected ? 2 : 1,
                     ),
                   ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.directions_car_rounded,
+                        color: inService
+                            ? AppColors.textGrey
+                            : (isSelected ? AppColors.primary : AppColors.textGrey),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              v.displayName,
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: inService
+                                      ? AppColors.textGrey
+                                      : AppColors.textDark),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              inService ? 'Currently in service' : v.subtitle,
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: inService
+                                      ? AppColors.warning
+                                      : AppColors.textGrey,
+                                  fontWeight: inService
+                                      ? FontWeight.w500
+                                      : FontWeight.w400),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (inService)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text('In service',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.warning)),
+                        )
+                      else if (isSelected)
+                        const Icon(Icons.check_circle_rounded,
+                            color: AppColors.primary, size: 20),
+                    ],
+                  ),
                 ),
-              )),
+              ),
+            );
+          }),
           GestureDetector(
             onTap: () {
               Navigator.pop(context);
