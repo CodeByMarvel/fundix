@@ -1,0 +1,1 @@
+enum MechanicType { garage, mobile }

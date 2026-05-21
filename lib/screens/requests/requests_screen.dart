@@ -9,7 +9,9 @@ import '../../providers/job_notifier.dart';
 import '../../providers/locale_provider.dart';
 import '../../models/job_status.dart';
 import '../../models/mechanic_offer.dart';
+import '../../models/mechanic_type.dart';
 import '../../models/job.dart';
+import '../mechanic/profile/customer_mechanic_profile_view.dart';
 import '../request_flow/request_creation_flow.dart';
 
 class RequestsScreen extends ConsumerWidget {
@@ -304,10 +306,17 @@ class _OffersView extends StatelessWidget {
         const Text('Ranked by skill match · rating · distance',
             style: TextStyle(fontSize: 12, color: AppColors.textGrey)),
         const SizedBox(height: 16),
-        ...offers.map((o) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _OfferCard(offer: o, onSelect: () => onSelect(o)),
-            )),
+        // First mechanic in the ranked list is garage-based; the rest are mobile.
+        // In production this comes from the mechanic's account type in Supabase.
+        ...offers.asMap().entries.map((entry) {
+          final i = entry.key;
+          final o = entry.value;
+          final type = i == 0 ? MechanicType.garage : MechanicType.mobile;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _OfferCard(offer: o, type: type, onSelect: () => onSelect(o)),
+          );
+        }),
       ],
     );
   }
