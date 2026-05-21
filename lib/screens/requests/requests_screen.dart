@@ -323,12 +323,15 @@ class _OffersView extends StatelessWidget {
 }
 
 class _OfferCard extends StatelessWidget {
-  const _OfferCard({required this.offer, required this.onSelect});
+  const _OfferCard({required this.offer, required this.type, required this.onSelect});
   final MechanicOffer offer;
+  final MechanicType type;
   final VoidCallback onSelect;
 
   @override
   Widget build(BuildContext context) {
+    final isGarage = type == MechanicType.garage;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -341,38 +344,61 @@ class _OfferCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: AppColors.primarySurface,
-                child: Text(offer.name[0],
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary)),
-              ),
+              // Garage = rounded square tile; mobile = circle
+              isGarage
+                  ? Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySurface,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.store_rounded, color: AppColors.primary, size: 22),
+                    )
+                  : CircleAvatar(
+                      radius: 22,
+                      backgroundColor: AppColors.primarySurface,
+                      child: Text(
+                        offer.name[0],
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primary),
+                      ),
+                    ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(offer.name,
-                        style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textDark)),
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textDark)),
                     Row(
                       children: [
-                        const Icon(Icons.star_rounded,
-                            color: AppColors.warning, size: 14),
+                        const Icon(Icons.star_rounded, color: AppColors.warning, size: 14),
                         const SizedBox(width: 3),
                         Text('${offer.rating}',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textGrey)),
+                            style: const TextStyle(fontSize: 12, color: AppColors.textGrey)),
                         Text(' · ${offer.reviewCount} reviews',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textGrey)),
+                            style: const TextStyle(fontSize: 12, color: AppColors.textGrey)),
                       ],
                     ),
                   ],
+                ),
+              ),
+              // Type badge — tells the customer at a glance which kind of mechanic this is
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isGarage
+                      ? const Color(0xFF1A6B3C).withValues(alpha: 0.08)
+                      : AppColors.primarySurface,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  isGarage ? 'Garage' : 'Mobile',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: isGarage ? const Color(0xFF1A6B3C) : AppColors.primary,
+                  ),
                 ),
               ),
             ],
@@ -380,13 +406,9 @@ class _OfferCard extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              _InfoPill(
-                  icon: Icons.near_me_rounded,
-                  label: '${offer.distanceKm} km'),
+              _InfoPill(icon: Icons.near_me_rounded, label: '${offer.distanceKm} km'),
               const SizedBox(width: 8),
-              _InfoPill(
-                  icon: Icons.access_time_rounded,
-                  label: '${offer.etaMinutes} min'),
+              _InfoPill(icon: Icons.access_time_rounded, label: '${offer.etaMinutes} min'),
             ],
           ),
           const SizedBox(height: 10),
@@ -395,21 +417,49 @@ class _OfferCard extends StatelessWidget {
             children: offer.skills
                 .take(3)
                 .map((s) => Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: AppColors.primarySurface,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(s,
                           style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.primary)),
+                              fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.primary)),
                     ))
                 .toList(),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
+          // View full profile — opens the customer trust card bottom sheet
+          GestureDetector(
+            onTap: () => showMechanicProfile(
+              context,
+              offer: offer,
+              type: type,
+              onSelect: onSelect,
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.person_search_rounded, size: 15, color: AppColors.primary),
+                  SizedBox(width: 6),
+                  Text(
+                    'View full profile',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(Icons.arrow_forward_rounded, size: 13, color: AppColors.primary),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(

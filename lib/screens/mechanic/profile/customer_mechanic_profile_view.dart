@@ -11,14 +11,21 @@ void showMechanicProfile(
   BuildContext context, {
   required MechanicOffer offer,
   required MechanicType type,
-  // Called when customer confirms they want THIS mechanic
   required VoidCallback onSelect,
+  // Contact (call) is locked until the mechanic accepts the job.
+  // Pass true only after CustomerRequestStatus.mechanicSelected or beyond.
+  bool canContact = false,
 }) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _MechanicProfileSheet(offer: offer, type: type, onSelect: onSelect),
+    builder: (_) => _MechanicProfileSheet(
+      offer: offer,
+      type: type,
+      onSelect: onSelect,
+      canContact: canContact,
+    ),
   );
 }
 
