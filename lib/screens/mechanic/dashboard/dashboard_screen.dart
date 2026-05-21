@@ -2,15 +2,54 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../theme/app_colors.dart';
 import '../../../providers/mechanic_availability_provider.dart';
+import '../../../providers/location_provider.dart';
 import '../../../providers/job_notifier.dart';
 import '../../../providers/earnings_provider.dart';
 import '../../../models/job_status.dart';
+import '../../../services/mechanic_api_service.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  bool _toggling = false;
+
+  Future<void> _handleToggle(bool goOnline) async {
+    if (_toggling) return;
+    setState(() => _toggling = true);
+
+    try {
+      double? lat, lng;
+
+      if (goOnline) {
+        // Ensure fresh GPS before going online
+        await ref.read(locationProvider.notifier).requestLocation();
+        final loc = ref.read(locationProvider);
+        if (loc.hasLocation) {
+          lat = loc.latitude;
+          lng = loc.longitude;
+        }
+      }
+
+      await MechanicApiService.setAvailability(goOnline, lat: lat, lng: lng);
+      if (!mounted) return;
+      ref.read(mechanicIsOnlineProvider.notifier).state = goOnline;
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+      );
+    } finally {
+      if (mounted) setState(() => _toggling = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final isOnline = ref.watch(mechanicIsOnlineProvider);
     final jobState = ref.watch(jobProvider);
     final hasActiveJob = jobState.mechanicJobStatus != MechanicJobStatus.idle;
@@ -36,8 +75,8 @@ class DashboardScreen extends ConsumerWidget {
         children: [
           _OnlineToggle(
             isOnline: isOnline,
-            onToggle: (val) =>
-                ref.read(mechanicIsOnlineProvider.notifier).state = val,
+            loading: _toggling,
+            onToggle: _handleToggle,
           ),
           if (hasActiveJob) ...[
             const SizedBox(height: 16),
@@ -60,10 +99,15 @@ class DashboardScreen extends ConsumerWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _OnlineToggle extends StatelessWidget {
-  const _OnlineToggle({required this.isOnline, required this.onToggle});
+  const _OnlineToggle({
+    required this.isOnline,
+    required this.onToggle,
+    this.loading = false,
+  });
 
   final bool isOnline;
   final ValueChanged<bool> onToggle;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -136,29 +180,43 @@ class _OnlineToggle extends StatelessWidget {
             ),
           ),
           GestureDetector(
-            onTap: () => onToggle(!isOnline),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              width: 64,
-              height: 34,
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(17),
-              ),
-              child: AnimatedAlign(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                alignment:
-                    isOnline ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  width: 26,
-                  height: 26,
-                  decoration: const BoxDecoration(
-                      color: Colors.white, shape: BoxShape.circle),
-                ),
-              ),
-            ),
+            onTap: loading ? null : () => onToggle(!isOnline),
+            child: loading
+                ? const SizedBox(
+                    width: 64,
+                    height: 34,
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                : AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 64,
+                    height: 34,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                    child: AnimatedAlign(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      alignment: isOnline
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Container(
+                        width: 26,
+                        height: 26,
+                        decoration: const BoxDecoration(
+                            color: Colors.white, shape: BoxShape.circle),
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),

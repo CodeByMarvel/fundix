@@ -61,26 +61,6 @@ const _mobileServices = [
 const _equipment = ['Diagnostic Scanner', 'Hydraulic Lift', 'Spray Booth', 'Wheel Alignment'];
 const _operatingStatuses = ['Open now', 'Busy', 'Appointment only'];
 
-final _mockReviews = [
-  (
-    name: 'John M.',
-    rating: 5,
-    date: '2 weeks ago',
-    text: 'Transparent pricing and updated me daily during accident repair. Car came back looking brand new.',
-  ),
-  (
-    name: 'Sarah K.',
-    rating: 5,
-    date: '1 month ago',
-    text: 'Very professional, diagnosed the issue quickly. Done within the same day.',
-  ),
-  (
-    name: 'David O.',
-    rating: 4,
-    date: '1 month ago',
-    text: 'Good suspension work. Kept me informed throughout. Will come back.',
-  ),
-];
 
 // ── Main Screen ────────────────────────────────────────────────────────────────
 
@@ -1017,64 +997,24 @@ class _CustomerReviewsSection extends StatelessWidget {
           const SizedBox(height: 4),
           Text('Real feedback from verified customers', style: TextStyle(fontSize: 11, color: context.textGrey)),
           const SizedBox(height: 14),
-          for (final r in _mockReviews)
-            _ReviewCard(name: r.name, rating: r.rating, date: r.date, text: r.text),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                children: [
+                  Icon(Icons.star_border_rounded, size: 36, color: context.textGrey),
+                  const SizedBox(height: 8),
+                  Text('No reviews yet', style: TextStyle(fontSize: 13, color: context.textGrey)),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _ReviewCard extends StatelessWidget {
-  const _ReviewCard({required this.name, required this.rating, required this.date, required this.text});
-  final String name;
-  final int rating;
-  final String date;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: context.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: context.divider)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AppColors.primarySurface,
-                  child: Text(name[0], style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary)),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.textDark)),
-                      Row(
-                        children: [
-                          ...List.generate(rating, (_) => const Icon(Icons.star_rounded, size: 11, color: AppColors.warning)),
-                          const SizedBox(width: 4),
-                          Text(date, style: TextStyle(fontSize: 10, color: context.textGrey)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text('"$text"', style: TextStyle(fontSize: 12, color: context.textGrey, fontStyle: FontStyle.italic)),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ── Upgrade to Garage Section (mobile mechanics only) ──────────────────────────
 

@@ -1,37 +1,31 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/vehicle.dart';
+import '../services/vehicle_service.dart';
 
 class VehicleNotifier extends StateNotifier<List<Vehicle>> {
-  VehicleNotifier() : super(_mockVehicles);
+  VehicleNotifier() : super(const []) {
+    _load();
+  }
 
-  void addVehicle(Vehicle vehicle) => state = [...state, vehicle];
+  Future<void> _load() async {
+    try {
+      final vehicles = await VehicleService.fetchVehicles();
+      if (mounted) state = vehicles;
+    } catch (_) {
+      // No-op — user starts with empty list, can add vehicles manually
+    }
+  }
 
-  void removeVehicle(String id) =>
-      state = state.where((v) => v.id != id).toList();
+  Future<Vehicle> addVehicle(Vehicle vehicle) async {
+    final saved = await VehicleService.insertVehicle(vehicle);
+    state = [...state, saved];
+    return saved;
+  }
 
-  static const _mockVehicles = [
-    Vehicle(
-      id: 'v_001',
-      brand: 'Toyota',
-      model: 'Premio',
-      year: 2012,
-      engine: '2ZR',
-      fuelType: 'Petrol',
-      transmission: 'Auto',
-      bodyType: 'Sedan',
-      nickname: 'Daily Car',
-    ),
-    Vehicle(
-      id: 'v_002',
-      brand: 'Toyota',
-      model: 'Noah',
-      year: 2015,
-      fuelType: 'Petrol',
-      transmission: 'Auto',
-      bodyType: 'Van',
-      nickname: 'Family Car',
-    ),
-  ];
+  Future<void> removeVehicle(String id) async {
+    await VehicleService.deleteVehicle(id);
+    state = state.where((v) => v.id != id).toList();
+  }
 }
 
 final vehicleProvider =
@@ -39,4 +33,5 @@ final vehicleProvider =
   (ref) => VehicleNotifier(),
 );
 
-final selectedVehicleIdProvider = StateProvider<String?>((ref) => 'v_001');
+// Null by default — no vehicle pre-selected until user picks one
+final selectedVehicleIdProvider = StateProvider<String?>((ref) => null);

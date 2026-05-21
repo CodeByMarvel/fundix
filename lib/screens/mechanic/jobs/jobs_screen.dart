@@ -345,65 +345,6 @@ class _IncomingRequestCard extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
-        // AI possible causes (repairs only)
-        if (_isRepair)
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF6366F1).withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.2)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF6366F1).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.auto_awesome_rounded,
-                          color: Color(0xFF6366F1), size: 15),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text('AI — Possible Causes',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF6366F1))),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                ..._aiCauses(job.serviceCategory).map(
-                  (cause) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 5, right: 8),
-                          child: CircleAvatar(
-                              radius: 3,
-                              backgroundColor: Color(0xFF6366F1)),
-                        ),
-                        Expanded(
-                          child: Text(cause,
-                              style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textGrey,
-                                  height: 1.4)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         const SizedBox(height: 8),
 
         // Customer info
@@ -475,34 +416,6 @@ class _IncomingRequestCard extends StatelessWidget {
     );
   }
 
-  List<String> _aiCauses(String category) {
-    switch (category) {
-      case 'Engine':
-        return [
-          'Worn spark plugs causing misfires',
-          'Clogged fuel injectors reducing fuel delivery',
-          'Faulty oxygen sensor affecting air-fuel ratio',
-        ];
-      case 'Electrical':
-        return [
-          'Weak or failing battery (below 12.4V)',
-          'Corroded terminal connections',
-          'Faulty alternator not charging battery',
-        ];
-      case 'Brake':
-        return [
-          'Worn brake pads below minimum thickness',
-          'Warped rotors from heat cycles',
-          'Low brake fluid or hydraulic leak',
-        ];
-      default:
-        return [
-          'Component wear from regular use',
-          'Fluid leak causing system failure',
-          'Sensor malfunction triggering warning light',
-        ];
-    }
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

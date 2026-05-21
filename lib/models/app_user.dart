@@ -17,19 +17,3 @@ class AppUser {
   });
 }
 
-// Mock users used throughout development
-class MockUsers {
-  static const customer = AppUser(
-    id: 'cust_001',
-    name: 'Alex Kamau',
-    email: 'alex@example.com',
-    role: UserRole.customer,
-  );
-
-  static const mechanic = AppUser(
-    id: 'mech_001',
-    name: 'John Mwangi',
-    email: 'john@example.com',
-    role: UserRole.mechanic,
-  );
-}

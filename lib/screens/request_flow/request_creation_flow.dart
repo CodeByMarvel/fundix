@@ -394,14 +394,14 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
     }
   }
 
-  void _saveVehicle() {
+  Future<void> _saveVehicle() async {
     final make = _makeCtrl.text.trim();
     final model = _modelCtrl.text.trim();
     final year = int.tryParse(_yearCtrl.text.trim()) ?? DateTime.now().year;
     if (make.isEmpty || model.isEmpty) return;
 
     final vehicle = Vehicle(
-      id: 'v_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'temp',
       brand: make,
       model: model,
       year: year,
@@ -410,9 +410,10 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
       bodyType: 'Sedan',
     );
 
-    ref.read(vehicleProvider.notifier).addVehicle(vehicle);
+    final saved = await ref.read(vehicleProvider.notifier).addVehicle(vehicle);
+    if (!mounted) return;
     setState(() {
-      _selectedVehicle = vehicle;
+      _selectedVehicle = saved;
       _showVehicleForm = false;
       _makeCtrl.clear();
       _modelCtrl.clear();
@@ -453,10 +454,17 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
 
     ref.read(jobProvider.notifier).submitRequest(
           description: description,
-          carType: _selectedVehicle?.displayName ?? 'Unknown vehicle',
-          location: 'Nairobi, Kenya',
-          manualCategory: manualCategory,
           vehicleId: _selectedVehicle?.id,
+          manualCategory: manualCategory,
+          vehicleInfo: _selectedVehicle != null
+              ? {
+                  'displayName': _selectedVehicle!.displayName,
+                  'brand': _selectedVehicle!.brand,
+                  'model': _selectedVehicle!.model,
+                  'year': _selectedVehicle!.year,
+                  'fuelType': _selectedVehicle!.fuelType,
+                }
+              : null,
         );
   }
 

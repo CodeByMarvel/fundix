@@ -17,6 +17,30 @@ create table public.profiles (
   created_at timestamptz default now()
 );
 
+-- ── Vehicles ──────────────────────────────────────────────────────────────────
+-- One row per customer vehicle. Queried directly from the Flutter app via anon key + RLS.
+create table public.vehicles (
+  id           uuid         default gen_random_uuid() primary key,
+  owner_id     uuid         references public.profiles(id) on delete cascade not null,
+  brand        text         not null,
+  model        text         not null,
+  year         int          not null,
+  engine       text,
+  fuel_type    text         not null default 'Petrol',
+  transmission text         not null default 'Auto',
+  body_type    text         not null default 'Sedan',
+  plate_number text,
+  nickname     text,
+  created_at   timestamptz  default now()
+);
+
+alter table public.vehicles enable row level security;
+
+create policy "Users manage own vehicles"
+  on public.vehicles for all
+  using  (auth.uid() = owner_id)
+  with check (auth.uid() = owner_id);
+
 -- ── Mechanics ─────────────────────────────────────────────────────────────────
 -- One row per mechanic user. mechanic_type can only move garage; never back.
 create table public.mechanics (

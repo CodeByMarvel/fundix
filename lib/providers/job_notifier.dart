@@ -2,9 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/job.dart';
 import '../models/job_status.dart';
-import '../models/app_user.dart';
 import '../models/mechanic_offer.dart';
 import '../models/auto_tagger.dart';
+import '../services/request_service.dart';
+import 'auth_provider.dart';
+import 'location_provider.dart';
 import 'mechanic_availability_provider.dart';
 
 @immutable
@@ -17,9 +19,8 @@ class JobState {
   final String? diagnosisNotes;
   final String? repairComplexity;
   final double? generatedQuote;
-  // ID of the vehicle currently locked into an active service.
-  // Null when no job is active. Used by the home screen to block reuse.
   final String? activeVehicleId;
+  final String? error;
 
   const JobState({
     this.customerStatus = CustomerRequestStatus.idle,
@@ -31,6 +32,7 @@ class JobState {
     this.repairComplexity,
     this.generatedQuote,
     this.activeVehicleId,
+    this.error,
   });
 
   bool get hasActiveJob => customerStatus.isActive && activeJob != null;
@@ -45,6 +47,7 @@ class JobState {
     String? repairComplexity,
     double? generatedQuote,
     String? activeVehicleId,
+    String? error,
   }) {
     return JobState(
       customerStatus: customerStatus ?? this.customerStatus,
@@ -56,6 +59,7 @@ class JobState {
       repairComplexity: repairComplexity ?? this.repairComplexity,
       generatedQuote: generatedQuote ?? this.generatedQuote,
       activeVehicleId: activeVehicleId ?? this.activeVehicleId,
+      error: error,
     );
   }
 }
@@ -70,60 +74,79 @@ class JobNotifier extends StateNotifier<JobState> {
 
   Future<void> submitRequest({
     required String description,
-    required String carType,
-    required String location,
-    String? manualCategory,
     String? vehicleId,
+    String? manualCategory,
+    Map<String, dynamic>? vehicleInfo,
   }) async {
+    final user = _ref.read(authProvider).user;
+    if (user == null) return;
+
     final category = manualCategory ?? AutoTagger.detect(description);
     final minMinutes = AutoTagger.minimumMinutesFor(category);
 
-    final job = Job(
-      id: 'job_${DateTime.now().millisecondsSinceEpoch}',
-      customer: MockUsers.customer,
-      problemDescription: description,
-      carType: carType.isEmpty ? 'Unknown vehicle' : carType,
-      serviceCategory: category,
-      location: location.isEmpty ? 'Nairobi, Kenya' : location,
-      minimumServiceMinutes: minMinutes,
-      customerStatus: CustomerRequestStatus.searching,
-      mechanicStatus: MechanicJobStatus.idle,
-      createdAt: DateTime.now(),
-      updates: [
-        JobUpdate(
-          message: 'Request submitted · Auto-tagged: $category',
-          timestamp: DateTime.now(),
-        ),
-      ],
-    );
+    // Ensure we have GPS — request it if not yet fetched
+    var loc = _ref.read(locationProvider);
+    if (!loc.hasLocation) {
+      await _ref.read(locationProvider.notifier).requestLocation();
+      loc = _ref.read(locationProvider);
+    }
+
+    // Fallback: Nairobi city centre when GPS is unavailable
+    final lat = loc.latitude ?? -1.2864;
+    final lng = loc.longitude ?? 36.8172;
 
     state = state.copyWith(
       customerStatus: CustomerRequestStatus.searching,
       isProcessing: true,
-      activeJob: job,
-      activeVehicleId: vehicleId,
+      error: null,
     );
 
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
+    try {
+      final result = await RequestService.createRequest(
+        vehicleInfo: vehicleInfo ?? {'displayName': 'Unknown vehicle'},
+        symptoms: description,
+        lat: lat,
+        lng: lng,
+      );
 
-    state = state.copyWith(
-      customerStatus: CustomerRequestStatus.mechanicsResponding,
-      pendingOffers: _rankedOffers(category),
-      isProcessing: false,
-    );
-
-    // Auto-assign top mechanic after 15s if customer doesn't pick
-    Future.delayed(const Duration(seconds: 15), () {
       if (!mounted) return;
-      if (state.customerStatus != CustomerRequestStatus.mechanicsResponding) return;
-      if (state.pendingOffers.isEmpty) return;
-      selectMechanic(state.pendingOffers.first);
-    });
+
+      final job = Job(
+        id: result['id'] as String,
+        customer: user,
+        problemDescription: description,
+        carType: vehicleInfo?['displayName'] as String? ?? 'Unknown vehicle',
+        serviceCategory: category,
+        location: loc.hasLocation
+            ? '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}'
+            : 'Nairobi, Kenya',
+        minimumServiceMinutes: minMinutes,
+        customerStatus: CustomerRequestStatus.searching,
+        mechanicStatus: MechanicJobStatus.idle,
+        createdAt: DateTime.now(),
+        updates: [
+          JobUpdate(
+            message: 'Request submitted · Searching for mechanics',
+            timestamp: DateTime.now(),
+          ),
+        ],
+      );
+
+      state = state.copyWith(
+        customerStatus: CustomerRequestStatus.searching,
+        isProcessing: false,
+        activeJob: job,
+        activeVehicleId: vehicleId,
+        pendingOffers: const [],
+      );
+    } catch (e) {
+      if (!mounted) return;
+      state = JobState(error: e.toString());
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 2 — Customer picks mechanic (or auto-assigned)
+  // STAGE 2 — Customer picks mechanic (dispatched via realtime)
   // ───────────────────────────────────────────────────────────────────────────
 
   void selectMechanic(MechanicOffer offer) {
@@ -137,11 +160,10 @@ class JobNotifier extends StateNotifier<JobState> {
       assignedOffer: offer,
       clearOffers: true,
     );
-    // Mechanic manually accepts from their app — no auto-accept
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 2b — Mechanic accepts or rejects incoming request
+  // STAGE 2b — Mechanic accepts or rejects
   // ───────────────────────────────────────────────────────────────────────────
 
   void mechanicAcceptsJob() {
@@ -156,30 +178,30 @@ class JobNotifier extends StateNotifier<JobState> {
 
   void mechanicRejectsJob() {
     if (state.mechanicJobStatus != MechanicJobStatus.received) return;
-    final category = state.activeJob?.serviceCategory ?? 'General';
 
     final updatedJob = state.activeJob?.copyWith(
       mechanicStatus: MechanicJobStatus.idle,
       updates: [
         ...?state.activeJob?.updates,
         JobUpdate(
-          message: 'Mechanic declined · Dispatching next available',
+          message: 'Mechanic declined · Searching for next available',
           timestamp: DateTime.now(),
         ),
       ],
     );
 
+    // Go back to searching — realtime will push the next offer
     state = JobState(
-      customerStatus: CustomerRequestStatus.mechanicsResponding,
+      customerStatus: CustomerRequestStatus.searching,
       mechanicJobStatus: MechanicJobStatus.idle,
       activeJob: updatedJob,
-      pendingOffers: _rankedOffers(category),
+      pendingOffers: const [],
       activeVehicleId: state.activeVehicleId,
     );
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 3 — Mechanic en route; presses Confirm Arrival → inspection starts
+  // STAGE 3 — En route; mechanic confirms arrival
   // ───────────────────────────────────────────────────────────────────────────
 
   void mechanicArrived() {
@@ -192,7 +214,7 @@ class JobNotifier extends StateNotifier<JobState> {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 4 — Inspection: mechanic writes diagnosis
+  // STAGE 4 — Mechanic writes diagnosis
   // ───────────────────────────────────────────────────────────────────────────
 
   void mechanicSubmitsDiagnosis({
@@ -224,7 +246,7 @@ class JobNotifier extends StateNotifier<JobState> {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 5 — Mechanic sends quote; customer approves or rejects
+  // STAGE 5 — Quote sent; customer approves or rejects
   // ───────────────────────────────────────────────────────────────────────────
 
   void mechanicSendsQuote() {
@@ -287,7 +309,7 @@ class JobNotifier extends StateNotifier<JobState> {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 6 — Repair in progress; mechanic marks complete
+  // STAGE 6 — Repair in progress
   // ───────────────────────────────────────────────────────────────────────────
 
   void mechanicCompletesRepair() {
@@ -298,7 +320,6 @@ class JobNotifier extends StateNotifier<JobState> {
       message: 'Repair complete · Awaiting customer verification',
     );
 
-    // Auto-confirm after 10 minutes if customer doesn't respond
     Future.delayed(const Duration(minutes: 10), () {
       if (!mounted) return;
       if (state.mechanicJobStatus != MechanicJobStatus.awaitingCustomerVerification) {
@@ -309,7 +330,7 @@ class JobNotifier extends StateNotifier<JobState> {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // STAGE 7 — Customer verifies repair; payment triggered on confirm
+  // STAGE 7 — Customer verifies; payment triggered
   // ───────────────────────────────────────────────────────────────────────────
 
   void customerConfirmsCompletion() {
@@ -340,7 +361,6 @@ class JobNotifier extends StateNotifier<JobState> {
     _processPayment();
   }
 
-  // Simulates M-Pesa payment processing; resolves after 4 seconds
   void _processPayment() {
     Future.delayed(const Duration(seconds: 4), () {
       if (!mounted) return;
@@ -387,7 +407,6 @@ class JobNotifier extends StateNotifier<JobState> {
       customerStatus: CustomerRequestStatus.completed,
       mechanicJobStatus: MechanicJobStatus.completed,
       activeJob: updatedJob,
-      // activeVehicleId intentionally cleared — job is fully done
     );
   }
 
@@ -460,51 +479,6 @@ class JobNotifier extends StateNotifier<JobState> {
       default:
         return 2500;
     }
-  }
-
-  // Ranked by: skill match > rating > distance
-  List<MechanicOffer> _rankedOffers(String category) {
-    final offers = [
-      MechanicOffer(
-        mechanicId: 'mech_001',
-        name: 'John Mwangi',
-        rating: 4.9,
-        reviewCount: 234,
-        distanceKm: 1.2,
-        etaMinutes: 8,
-        skills: [category, 'Engine', 'Oil Change'],
-        priceEstimate: 1200,
-      ),
-      MechanicOffer(
-        mechanicId: 'mech_002',
-        name: 'Peter Otieno',
-        rating: 4.7,
-        reviewCount: 156,
-        distanceKm: 1.8,
-        etaMinutes: 12,
-        skills: [category, 'Tire', 'Diagnostics'],
-        priceEstimate: 1000,
-      ),
-      MechanicOffer(
-        mechanicId: 'mech_003',
-        name: 'Samuel Njoroge',
-        rating: 4.8,
-        reviewCount: 89,
-        distanceKm: 2.4,
-        etaMinutes: 15,
-        skills: ['Battery', 'Electrical', category],
-        priceEstimate: 900,
-      ),
-    ];
-
-    offers.sort((a, b) {
-      final aHasSkill = a.skills.contains(category) ? 0 : 1;
-      final bHasSkill = b.skills.contains(category) ? 0 : 1;
-      if (aHasSkill != bHasSkill) return aHasSkill - bHasSkill;
-      return b.rating.compareTo(a.rating);
-    });
-
-    return offers;
   }
 }
 
