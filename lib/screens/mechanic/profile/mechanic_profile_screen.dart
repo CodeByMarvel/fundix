@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/mechanic_type.dart';
+import '../../../models/job_zone.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_theme_ext.dart';
 import '../../../providers/locale_provider.dart';
@@ -58,7 +59,6 @@ const _mobileServices = [
 ];
 
 const _equipment = ['Diagnostic Scanner', 'Hydraulic Lift', 'Spray Booth', 'Wheel Alignment'];
-const _mobileZones = ['Westlands', 'Kilimani', 'Parklands', 'Ngong Road'];
 const _operatingStatuses = ['Open now', 'Busy', 'Appointment only'];
 
 final _mockReviews = [
@@ -689,23 +689,36 @@ class _MobileInfoSection extends StatelessWidget {
         children: [
           _SectionHeader(icon: Icons.directions_car_rounded, label: 'Mobile Profile', actionLabel: 'Edit', onAction: () {}),
           const SizedBox(height: 16),
-          Text('Operational Zones', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.textDark)),
+          Text('Operates In', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.textDark)),
+          const SizedBox(height: 8),
+          // Zone type badge — this is the job environment classification, not just geography.
+          // Mobile Tier 1 mechanics only accept jobs in Controlled Mobile Zones.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.place_rounded, size: 13, color: AppColors.primary),
+                const SizedBox(width: 5),
+                Text(
+                  JobZone.controlledMobile.label,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text('Accepted location types', style: TextStyle(fontSize: 11, color: context.textGrey)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: _mobileZones.map((z) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(color: context.bg, borderRadius: BorderRadius.circular(8), border: Border.all(color: context.divider)),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.location_on_rounded, size: 11, color: AppColors.primary),
-                  const SizedBox(width: 3),
-                  Text(z, style: TextStyle(fontSize: 11, color: context.textDark)),
-                ],
-              ),
-            )).toList(),
+            children: MobileZoneType.values.map((z) => _ZoneTypeChip(zone: z)).toList(),
           ),
           const SizedBox(height: 16),
           Row(
@@ -765,6 +778,45 @@ class _MobileInfoTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ZoneTypeChip extends StatelessWidget {
+  const _ZoneTypeChip({required this.zone});
+  final MobileZoneType zone;
+
+  IconData _icon() {
+    switch (zone) {
+      case MobileZoneType.commercialArea:    return Icons.business_rounded;
+      case MobileZoneType.residentialEstate: return Icons.home_work_rounded;
+      case MobileZoneType.fuelStation:       return Icons.local_gas_station_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: context.bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: context.divider),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_icon(), size: 12, color: AppColors.primary),
+          const SizedBox(width: 5),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(zone.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.textDark)),
+              Text(zone.examples, style: TextStyle(fontSize: 9, color: context.textGrey)),
+            ],
+          ),
+        ],
       ),
     );
   }

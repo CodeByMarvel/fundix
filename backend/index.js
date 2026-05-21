@@ -7,6 +7,8 @@ const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/authRoutes');
 const requestRoutes = require('./routes/requestRoutes');
 const diagnosisRoutes = require('./routes/diagnosisRoutes');
+const zoneRoutes = require('./routes/zoneRoutes');
+const mechanicRoutes = require('./routes/mechanicRoutes');
 const { errorHandler } = require('./middleware/errorMiddleware');
 
 const app = express();
@@ -31,6 +33,8 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/auth', authLimiter, authRoutes);
 app.use('/requests', requestRoutes);
 app.use('/diagnose', diagnosisRoutes);
+app.use('/zones', zoneRoutes);
+app.use('/mechanics', mechanicRoutes);
 
 app.use(errorHandler);
 

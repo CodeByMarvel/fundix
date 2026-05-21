@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/mechanic_offer.dart';
 import '../../../models/mechanic_type.dart';
+import '../../../models/job_zone.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_theme_ext.dart';
 
@@ -36,10 +37,12 @@ class _MechanicProfileSheet extends StatelessWidget {
     required this.offer,
     required this.type,
     required this.onSelect,
+    required this.canContact,
   });
   final MechanicOffer offer;
   final MechanicType type;
   final VoidCallback onSelect;
+  final bool canContact;
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +92,7 @@ class _MechanicProfileSheet extends StatelessWidget {
             ),
           ),
           // Sticky action bar — stays pinned at the bottom
-          _ActionBar(offer: offer, type: type, onSelect: onSelect),
+          _ActionBar(offer: offer, type: type, onSelect: onSelect, canContact: canContact),
         ],
       ),
     );
@@ -370,6 +373,36 @@ class _CustomerGarageLayer extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
+          // Zone badge — tells customer this job happens at a physical verified garage
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A6B3C).withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF1A6B3C).withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.store_rounded, size: 13, color: Color(0xFF1A6B3C)),
+                const SizedBox(width: 6),
+                Text(
+                  JobZone.garageWorkshop.label,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF1A6B3C)),
+                ),
+                const SizedBox(width: 6),
+                Container(width: 1, height: 12, color: const Color(0xFF1A6B3C).withValues(alpha: 0.3)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    JobZone.garageWorkshop.description,
+                    style: const TextStyle(fontSize: 10, color: Color(0xFF1A6B3C)),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
           Text('Equipment', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.textDark)),
           const SizedBox(height: 8),
           Wrap(
@@ -399,27 +432,34 @@ class _CustomerMobileLayer extends StatelessWidget {
         children: [
           _CardHeader(icon: Icons.directions_car_rounded, label: 'Mobile Coverage'),
           const SizedBox(height: 12),
-          Text('Operational Zones', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.textDark)),
+          Text('Operates In', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.textDark)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.place_rounded, size: 13, color: AppColors.primary),
+                const SizedBox(width: 5),
+                Text(
+                  JobZone.controlledMobile.label,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text('Accepted location types', style: TextStyle(fontSize: 11, color: context.textGrey)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 6,
-            children: ['Westlands', 'Kilimani', 'Parklands', 'Ngong Road'].map((z) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: context.bg,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: context.divider),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.location_on_rounded, size: 11, color: AppColors.primary),
-                  const SizedBox(width: 3),
-                  Text(z, style: TextStyle(fontSize: 11, color: context.textDark)),
-                ],
-              ),
-            )).toList(),
+            children: MobileZoneType.values.map((z) => _CustomerZoneChip(zone: z)).toList(),
           ),
           const SizedBox(height: 12),
           Row(
@@ -679,10 +719,16 @@ class _EtaStat extends StatelessWidget {
 // ── Action bar ─────────────────────────────────────────────────────────────────
 
 class _ActionBar extends StatelessWidget {
-  const _ActionBar({required this.offer, required this.type, required this.onSelect});
+  const _ActionBar({
+    required this.offer,
+    required this.type,
+    required this.onSelect,
+    required this.canContact,
+  });
   final MechanicOffer offer;
   final MechanicType type;
   final VoidCallback onSelect;
+  final bool canContact;
 
   @override
   Widget build(BuildContext context) {
@@ -707,20 +753,42 @@ class _ActionBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          // Call button — placeholder until phone integration
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.call_rounded, color: AppColors.success),
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Calling — coming soon')),
-              ),
-            ),
-          ),
+          // Contact button: locked until the mechanic accepts the job.
+          // Showing a lock here (rather than hiding it) makes the rule visible
+          // so the customer understands why they can't call yet.
+          canContact
+              ? Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.call_rounded, color: AppColors.success),
+                    onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Calling — coming soon')),
+                    ),
+                  ),
+                )
+              : GestureDetector(
+                  onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Contact details are shared once the mechanic accepts your request.'),
+                      duration: Duration(seconds: 3),
+                    ),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: context.divider.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: context.divider),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Icon(Icons.lock_rounded, color: AppColors.textGrey, size: 22),
+                    ),
+                  ),
+                ),
         ],
       ),
     );
@@ -880,6 +948,45 @@ class _InfoTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CustomerZoneChip extends StatelessWidget {
+  const _CustomerZoneChip({required this.zone});
+  final MobileZoneType zone;
+
+  IconData _icon() {
+    switch (zone) {
+      case MobileZoneType.commercialArea:    return Icons.business_rounded;
+      case MobileZoneType.residentialEstate: return Icons.home_work_rounded;
+      case MobileZoneType.fuelStation:       return Icons.local_gas_station_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: context.bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: context.divider),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_icon(), size: 12, color: AppColors.primary),
+          const SizedBox(width: 5),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(zone.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.textDark)),
+              Text(zone.examples, style: TextStyle(fontSize: 9, color: context.textGrey)),
+            ],
+          ),
+        ],
       ),
     );
   }
