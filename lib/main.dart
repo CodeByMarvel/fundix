@@ -14,6 +14,13 @@ void main() async {
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
     anonKey: AppConfig.supabaseAnonKey,
+    // PKCE flow: when a user taps the email verification link, Supabase
+    // redirects to fundix://login-callback/, the SDK catches the URI,
+    // exchanges the auth code for a session, and fires onAuthStateChange.
+    // AuthNotifier is already listening — so the user lands straight in the app.
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
   );
   runApp(const ProviderScope(child: FundixApp()));
 }

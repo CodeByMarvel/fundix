@@ -92,8 +92,6 @@ class MechanicProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 _ServicesSection(accountType: accountType),
                 const SizedBox(height: 16),
-                _WorkflowConfidenceSection(),
-                const SizedBox(height: 16),
                 _CustomerReviewsSection(),
                 const SizedBox(height: 16),
                 // Mobile mechanics see an upgrade path; garage mechanics cannot go back
@@ -873,111 +871,6 @@ class _ServiceRow extends StatelessWidget {
         ),
         if (showDivider) Divider(height: 1, color: context.divider),
       ],
-    );
-  }
-}
-
-// ── Workflow Confidence Section ────────────────────────────────────────────────
-
-class _WorkflowConfidenceSection extends StatelessWidget {
-  const _WorkflowConfidenceSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: AppColors.primarySurface, borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.track_changes_rounded, size: 18, color: AppColors.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Repair Progress Updates', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.textDark)),
-                    const SizedBox(height: 1),
-                    Text('Customers stay informed at every stage', style: TextStyle(fontSize: 11, color: context.textGrey)),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-                child: const Text('Active', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              _ProgressStep(label: 'Diagnosis\ncomplete', isDone: true),
-              _ProgressConnector(isDone: true),
-              _ProgressStep(label: 'Parts\nordered', isDone: false),
-              _ProgressConnector(isDone: false),
-              _ProgressStep(label: 'Repair\nongoing', isDone: false),
-              _ProgressConnector(isDone: false),
-              _ProgressStep(label: 'Ready for\npickup', isDone: false),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            "Customers see live updates like this — they're never left in the dark.",
-            style: TextStyle(fontSize: 11, color: context.textGrey, fontStyle: FontStyle.italic),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProgressStep extends StatelessWidget {
-  const _ProgressStep({required this.label, required this.isDone});
-  final String label;
-  final bool isDone;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: isDone ? AppColors.success : context.bg,
-            shape: BoxShape.circle,
-            border: Border.all(color: isDone ? AppColors.success : context.divider, width: 2),
-          ),
-          child: isDone ? const Icon(Icons.check_rounded, size: 16, color: Colors.white) : null,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 9,
-            color: isDone ? AppColors.success : context.textGrey,
-            fontWeight: isDone ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ProgressConnector extends StatelessWidget {
-  const _ProgressConnector({required this.isDone});
-  final bool isDone;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(height: 2, margin: const EdgeInsets.only(bottom: 22), color: isDone ? AppColors.success : context.divider),
     );
   }
 }

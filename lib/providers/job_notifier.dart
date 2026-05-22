@@ -77,6 +77,9 @@ class JobNotifier extends StateNotifier<JobState> {
     String? vehicleId,
     String? manualCategory,
     Map<String, dynamic>? vehicleInfo,
+    String? urgency,
+    String? serviceType,
+    DateTime? scheduledAt,
   }) async {
     final user = _ref.read(authProvider).user;
     if (user == null) return;
@@ -107,6 +110,9 @@ class JobNotifier extends StateNotifier<JobState> {
         symptoms: description,
         lat: lat,
         lng: lng,
+        urgency: urgency,
+        serviceType: serviceType,
+        scheduledAt: scheduledAt,
       );
 
       if (!mounted) return;

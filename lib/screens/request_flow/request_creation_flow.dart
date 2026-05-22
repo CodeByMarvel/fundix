@@ -10,15 +10,12 @@ import '../../providers/job_notifier.dart';
 
 void openRequestFlow(
   BuildContext context, {
-  String? preselectedType,
   String? preselectedVehicleId,
 }) {
   Navigator.push<void>(
     context,
     PageRouteBuilder(
       pageBuilder: (_, _, _) => RequestCreationFlow(
-        initialStep: preselectedType != null ? 1 : 0,
-        preselectedType: preselectedType,
         preselectedVehicleId: preselectedVehicleId,
       ),
       transitionDuration: const Duration(milliseconds: 320),
@@ -252,13 +249,9 @@ const Map<String, List<_DiagQuestion>> _diagData = {
 class RequestCreationFlow extends ConsumerStatefulWidget {
   const RequestCreationFlow({
     super.key,
-    this.initialStep = 0,
-    this.preselectedType,
     this.preselectedVehicleId,
   });
 
-  final int initialStep;
-  final String? preselectedType;   // 'service' | 'repair'
   final String? preselectedVehicleId;
 
   @override
@@ -266,16 +259,17 @@ class RequestCreationFlow extends ConsumerStatefulWidget {
 }
 
 class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
-  static const int _totalSteps = 6; // 0–5
+  static const int _totalSteps = 8; // 0–7
 
-  late int _step;
-  String? _requestType;
+  int _step = 0;
+  String? _urgency;      // 'emergency' | 'today' | 'scheduled'
+  String? _serviceType;  // 'mobile' | 'garage'
+  String? _requestType;  // 'service' | 'repair'
   Vehicle? _selectedVehicle;
 
   // ── Service path state ──────────────────────────────────────────────────────
   String? _serviceCategory;
   String? _specificService;
-  String? _schedule;
   DateTime? _scheduledDateTime;
   final _serviceNotesCtrl = TextEditingController();
 
@@ -295,19 +289,14 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
   @override
   void initState() {
     super.initState();
-    _step = widget.initialStep;
-    _requestType = widget.preselectedType;
-
     if (widget.preselectedVehicleId != null) {
       final vehicles = ref.read(vehicleProvider);
       final activeVehicleId = ref.read(jobProvider).activeVehicleId;
       try {
         final v = vehicles.firstWhere((v) => v.id == widget.preselectedVehicleId);
-        // Don't pre-select a vehicle that's already in an active service
         if (v.id != activeVehicleId) _selectedVehicle = v;
       } catch (_) {}
     }
-
     _makeCtrl.addListener(_revalidateForm);
     _modelCtrl.addListener(_revalidateForm);
     _yearCtrl.addListener(_revalidateForm);
@@ -334,32 +323,42 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
 
   bool get _canContinue {
     switch (_step) {
-      case 0:
-        return _requestType != null;
-      case 1:
-        return _selectedVehicle != null;
-      case 2:
+      case 0: return _urgency != null;
+      case 1: return _requestType != null;
+      case 2: return _serviceType != null;
+      case 3: return _selectedVehicle != null;
+      case 4:
         return _requestType == 'service' ? _serviceCategory != null : _mainProblem != null;
-      case 3:
+      case 5:
         if (_requestType == 'service') return _specificService != null;
-        // Repair: if "Other issue" selected, no diag questions — always continuable
         if (_mainProblem == 'Other issue') return true;
         return _diagAnswers.isNotEmpty;
-      case 4:
-        return _requestType == 'service' ? _schedule != null : true;
-      case 5:
-        return true;
-      default:
-        return false;
+      case 6:
+        return _urgency == 'scheduled' ? _scheduledDateTime != null : true;
+      case 7: return true;
+      default: return false;
     }
   }
 
   void _goNext() {
-    if (_showVehicleForm) return; // must save form first
-    if (_step < _totalSteps - 1) {
-      setState(() => _step++);
-    } else {
+    if (_showVehicleForm) return;
+    int next = _step + 1;
+
+    if (_step == 0) {
+      // Emergency and Scheduled skip the request-type and service-type steps
+      if (_urgency != 'today') next = 3;
+    } else if (_step == 5) {
+      // Emergency and Today+Service skip the date/media step
+      if (_urgency == 'emergency' ||
+          (_urgency == 'today' && _requestType == 'service')) {
+        next = 7;
+      }
+    }
+
+    if (next >= _totalSteps) {
       _submit();
+    } else {
+      setState(() => _step = next);
     }
   }
 
@@ -368,30 +367,56 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
       setState(() => _showVehicleForm = false);
       return;
     }
-    if (_step > widget.initialStep) {
-      // When going back from specific service, clear it
-      if (_step == 3 && _requestType == 'service') {
-        setState(() {
-          _specificService = null;
-          _step--;
-        });
+    if (_step == 0) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    switch (_step) {
+      case 3:
+        // From vehicle: skip back over request-type + service-type for non-today paths
+        if (_urgency != 'today') {
+          setState(() {
+            _urgency = null;
+            _serviceType = null;
+            _requestType = null;
+            _step = 0;
+          });
+        } else {
+          setState(() => _step = 2);
+        }
         return;
-      }
-      // When going back from category/problem, clear downstream
-      if (_step == 2) {
+      case 4:
         setState(() {
           _serviceCategory = null;
           _specificService = null;
           _mainProblem = null;
           _diagAnswers.clear();
-          _step--;
+          _step = 3;
         });
         return;
-      }
-      setState(() => _step--);
-    } else {
-      Navigator.of(context).pop();
+      case 5:
+        if (_requestType == 'service') setState(() { _specificService = null; });
+        setState(() => _step = 4);
+        return;
+      case 7:
+        // From notes: skip back over date/media step if it was skipped going forward
+        if (_urgency == 'emergency' ||
+            (_urgency == 'today' && _requestType == 'service')) {
+          setState(() => _step = 5);
+        } else {
+          setState(() => _step = 6);
+        }
+        return;
+      case 1:
+        setState(() { _requestType = null; _step = 0; });
+        return;
+      case 2:
+        setState(() { _serviceType = null; _step = 1; });
+        return;
     }
+
+    setState(() => _step--);
   }
 
   Future<void> _saveVehicle() async {
@@ -430,7 +455,8 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
     if (_requestType == 'service') {
       final parts = <String>[
         'Service Request: ${_specificService ?? _serviceCategory ?? 'General service'}',
-        if (_schedule != null) 'Schedule: $_schedule',
+        if (_urgency != null) 'Urgency: $_urgency',
+        if (_serviceType != null) 'Service type: $_serviceType',
         if (_scheduledDateTime != null)
           'Preferred date: ${_scheduledDateTime!.day}/${_scheduledDateTime!.month}/${_scheduledDateTime!.year}',
         if (_serviceNotesCtrl.text.trim().isNotEmpty) _serviceNotesCtrl.text.trim(),
@@ -443,6 +469,8 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
           .join(', ');
       final parts = <String>[
         'Main issue: ${_mainProblem ?? 'Unknown'}',
+        if (_urgency != null) 'Urgency: $_urgency',
+        if (_serviceType != null) 'Service type: $_serviceType',
         if (diagLines.isNotEmpty) diagLines,
         if (_repairNotesCtrl.text.trim().isNotEmpty) _repairNotesCtrl.text.trim(),
       ];
@@ -456,6 +484,9 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
           description: description,
           vehicleId: _selectedVehicle?.id,
           manualCategory: manualCategory,
+          urgency: _urgency,
+          serviceType: _serviceType,
+          scheduledAt: _scheduledDateTime,
           vehicleInfo: _selectedVehicle != null
               ? {
                   'displayName': _selectedVehicle!.displayName,
@@ -496,36 +527,40 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
 
   String get _stepTitle {
     switch (_step) {
-      case 0: return 'What do you need?';
-      case 1: return 'Which vehicle?';
-      case 2:
-        return _requestType == 'service' ? 'What type of service?' : "What's the main issue?";
-      case 3:
-        return _requestType == 'service' ? 'Which service specifically?' : 'Tell us more';
+      case 0: return 'How urgent is this?';
+      case 1: return 'What do you need?';
+      case 2: return 'Who should help you?';
+      case 3: return 'Which vehicle?';
       case 4:
-        return _requestType == 'service' ? 'When do you need it?' : 'Add photos or video';
-      case 5: return 'Any extra details?';
+        return _requestType == 'service' ? 'What type of service?' : "What's the main issue?";
+      case 5:
+        return _requestType == 'service' ? 'Which service specifically?' : 'Tell us more';
+      case 6:
+        return _urgency == 'scheduled' ? 'When do you need it?' : 'Add photos or video';
+      case 7: return 'Any extra details?';
       default: return '';
     }
   }
 
   String get _stepSubtitle {
     switch (_step) {
-      case 0: return 'Helps us match you with the right mechanic.';
-      case 1: return 'Select the vehicle that needs attention.';
-      case 2:
+      case 0: return 'This helps us find the right mechanic for you.';
+      case 1: return 'Are you booking a service or fixing a problem?';
+      case 2: return 'Choose how you want the job done.';
+      case 3: return 'Select the vehicle that needs attention.';
+      case 4:
         return _requestType == 'service'
             ? 'Pick the service area.'
             : 'Choose the closest description.';
-      case 3:
+      case 5:
         return _requestType == 'service'
             ? 'Select the exact service you need.'
             : 'Answer what you can — it helps the mechanic prepare.';
-      case 4:
-        return _requestType == 'service'
-            ? 'When should the mechanic arrive?'
+      case 6:
+        return _urgency == 'scheduled'
+            ? 'Pick a date and time for the garage appointment.'
             : 'Optional — photos speed up diagnosis.';
-      case 5: return 'Optional — anything the mechanic should know?';
+      case 7: return 'Optional — anything the mechanic should know?';
       default: return '';
     }
   }
@@ -534,9 +569,6 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
 
   @override
   Widget build(BuildContext context) {
-    final dotsTotal = _totalSteps - widget.initialStep;
-    final dotsCurrent = _step - widget.initialStep;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -545,14 +577,14 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(
-            (_step == widget.initialStep && !_showVehicleForm)
+            (_step == 0 && !_showVehicleForm)
                 ? Icons.close_rounded
                 : Icons.arrow_back_rounded,
             color: AppColors.textDark,
           ),
           onPressed: _goBack,
         ),
-        title: _StepDots(current: dotsCurrent, total: dotsTotal),
+        title: _StepDots(current: _step, total: _totalSteps),
       ),
       body: Column(
         children: [
@@ -612,24 +644,87 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
     if (_showVehicleForm) return _buildInlineVehicleForm();
 
     switch (_step) {
-      case 0: return _buildTypeStep();
-      case 1: return _buildVehicleStep();
-      case 2:
+      case 0: return _buildUrgencyStep();
+      case 1: return _buildTypeStep();
+      case 2: return _buildServiceTypeStep();
+      case 3: return _buildVehicleStep();
+      case 4:
         return _requestType == 'service'
             ? _buildServiceCategoryStep()
             : _buildMainProblemStep();
-      case 3:
+      case 5:
         return _requestType == 'service'
             ? _buildSpecificServiceStep()
             : _buildDiagnosticStep();
-      case 4:
-        return _requestType == 'service' ? _buildScheduleStep() : _buildMediaStep();
-      case 5: return _buildNotesStep();
+      case 6: return _buildDateOrMediaStep();
+      case 7: return _buildNotesStep();
       default: return const SizedBox();
     }
   }
 
-  // ── Step 0: Type selection ──────────────────────────────────────────────────
+  // ── Step 0: Urgency selection ───────────────────────────────────────────────
+
+  Widget _buildUrgencyStep() {
+    return Column(
+      children: [
+        _ScheduleCard(
+          title: 'Emergency',
+          subtitle: 'Broken down right now — I need help immediately',
+          icon: Icons.flash_on_rounded,
+          color: AppColors.error,
+          selected: _urgency == 'emergency',
+          onTap: () {
+            setState(() {
+              _urgency = 'emergency';
+              _serviceType = 'mobile';
+              _requestType = 'repair';
+            });
+            Future.delayed(const Duration(milliseconds: 230), () {
+              if (mounted && _step == 0) _goNext();
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+        _ScheduleCard(
+          title: "Today's Job",
+          subtitle: 'I need it sorted today — not an emergency',
+          icon: Icons.today_rounded,
+          color: AppColors.warning,
+          selected: _urgency == 'today',
+          onTap: () {
+            setState(() {
+              _urgency = 'today';
+              _serviceType = null;
+              _requestType = null;
+            });
+            Future.delayed(const Duration(milliseconds: 230), () {
+              if (mounted && _step == 0) _goNext();
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+        _ScheduleCard(
+          title: 'Schedule a Service',
+          subtitle: 'Book a garage appointment for a specific date',
+          icon: Icons.calendar_month_rounded,
+          color: const Color(0xFF6366F1),
+          selected: _urgency == 'scheduled',
+          onTap: () {
+            setState(() {
+              _urgency = 'scheduled';
+              _serviceType = 'garage';
+              _requestType = 'service';
+            });
+            Future.delayed(const Duration(milliseconds: 230), () {
+              if (mounted && _step == 0) _goNext();
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  // ── Step 1: Request type (service / repair) — Today's Job only ──────────────
 
   Widget _buildTypeStep() {
     return Column(
@@ -648,7 +743,7 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
               _diagAnswers.clear();
             });
             Future.delayed(const Duration(milliseconds: 230), () {
-              if (mounted && _step == 0) setState(() => _step = 1);
+              if (mounted && _step == 1) _goNext();
             });
           },
         ),
@@ -665,10 +760,45 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
               _requestType = 'repair';
               _serviceCategory = null;
               _specificService = null;
-              _schedule = null;
             });
             Future.delayed(const Duration(milliseconds: 230), () {
-              if (mounted && _step == 0) setState(() => _step = 1);
+              if (mounted && _step == 1) _goNext();
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  // ── Step 2: Service type (mobile / garage) — Today's Job only ───────────────
+
+  Widget _buildServiceTypeStep() {
+    return Column(
+      children: [
+        _ScheduleCard(
+          title: 'Mobile Mechanic',
+          subtitle: 'Mechanic comes to you — great for roadside or on-site fixes',
+          icon: Icons.build_rounded,
+          color: AppColors.primary,
+          selected: _serviceType == 'mobile',
+          onTap: () {
+            setState(() => _serviceType = 'mobile');
+            Future.delayed(const Duration(milliseconds: 230), () {
+              if (mounted && _step == 2) _goNext();
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+        _ScheduleCard(
+          title: 'Garage Service',
+          subtitle: 'Drop your car off at a garage — for bigger or longer jobs',
+          icon: Icons.store_rounded,
+          color: const Color(0xFF6366F1),
+          selected: _serviceType == 'garage',
+          onTap: () {
+            setState(() => _serviceType = 'garage');
+            Future.delayed(const Duration(milliseconds: 230), () {
+              if (mounted && _step == 2) _goNext();
             });
           },
         ),
@@ -836,7 +966,7 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
                   _specificService = null;
                 });
                 Future.delayed(const Duration(milliseconds: 220), () {
-                  if (mounted && _step == 2) setState(() => _step = 3);
+                  if (mounted && _step == 4) _goNext();
                 });
               },
               child: AnimatedContainer(
@@ -920,7 +1050,7 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
                 onTap: () {
                   setState(() => _specificService = s);
                   Future.delayed(const Duration(milliseconds: 220), () {
-                    if (mounted && _step == 3) setState(() => _step = 4);
+                    if (mounted && _step == 5) _goNext();
                   });
                 },
               ),
@@ -944,7 +1074,7 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
                 _diagAnswers.clear();
               });
               Future.delayed(const Duration(milliseconds: 220), () {
-                if (mounted && _step == 2) setState(() => _step = 3);
+                if (mounted && _step == 4) _goNext();
               });
             },
             child: AnimatedContainer(
@@ -1102,78 +1232,40 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
     );
   }
 
-  // ── Step 4 (Service): Schedule ──────────────────────────────────────────────
+  // ── Step 6: Date picker (scheduled) or media upload (repair) ─────────────────
 
-  Widget _buildScheduleStep() {
-    return Column(
-      children: [
-        _ScheduleCard(
-          title: 'Immediate',
-          subtitle: 'I need help right now',
-          icon: Icons.flash_on_rounded,
-          color: AppColors.error,
-          selected: _schedule == 'Immediate',
-          onTap: () {
-            setState(() {
-              _schedule = 'Immediate';
-              _scheduledDateTime = null;
-            });
-            Future.delayed(const Duration(milliseconds: 220), () {
-              if (mounted && _step == 4) setState(() => _step = 5);
-            });
-          },
-        ),
-        const SizedBox(height: 12),
-        _ScheduleCard(
-          title: 'Today',
-          subtitle: 'Anytime today works for me',
-          icon: Icons.today_rounded,
-          color: AppColors.warning,
-          selected: _schedule == 'Today',
-          onTap: () {
-            setState(() {
-              _schedule = 'Today';
-              _scheduledDateTime = null;
-            });
-            Future.delayed(const Duration(milliseconds: 220), () {
-              if (mounted && _step == 4) setState(() => _step = 5);
-            });
-          },
-        ),
-        const SizedBox(height: 12),
-        _ScheduleDateCard(
-          selected: _schedule == 'Scheduled',
-          selectedDate: _scheduledDateTime,
-          onTap: () async {
-            final now = DateTime.now();
-            final date = await showDatePicker(
-              context: context,
-              initialDate: now.add(const Duration(days: 1)),
-              firstDate: now,
-              lastDate: now.add(const Duration(days: 30)),
-            );
-            if (date == null || !mounted) return;
-            final time = await showTimePicker(
-              context: context,
-              initialTime: const TimeOfDay(hour: 9, minute: 0),
-            );
-            if (!mounted) return;
-            final dt = time == null
-                ? date
-                : DateTime(date.year, date.month, date.day, time.hour, time.minute);
-            setState(() {
-              _schedule = 'Scheduled';
-              _scheduledDateTime = dt;
-            });
-          },
-        ),
-      ],
-    );
-  }
+  Widget _buildDateOrMediaStep() {
+    if (_urgency == 'scheduled') {
+      return Column(
+        children: [
+          _ScheduleDateCard(
+            selected: _scheduledDateTime != null,
+            selectedDate: _scheduledDateTime,
+            onTap: () async {
+              final now = DateTime.now();
+              final date = await showDatePicker(
+                context: context,
+                initialDate: now.add(const Duration(days: 1)),
+                firstDate: now,
+                lastDate: now.add(const Duration(days: 30)),
+              );
+              if (date == null || !mounted) return;
+              final time = await showTimePicker(
+                context: context,
+                initialTime: const TimeOfDay(hour: 9, minute: 0),
+              );
+              if (!mounted) return;
+              final dt = time == null
+                  ? date
+                  : DateTime(date.year, date.month, date.day, time.hour, time.minute);
+              setState(() => _scheduledDateTime = dt);
+            },
+          ),
+        ],
+      );
+    }
 
-  // ── Step 4 (Repair): Media ──────────────────────────────────────────────────
-
-  Widget _buildMediaStep() {
+    // Repair path — media upload (optional)
     return Column(
       children: [
         Row(
@@ -1268,7 +1360,9 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
           serviceName: _requestType == 'service'
               ? (_specificService ?? _serviceCategory)
               : _mainProblem,
-          schedule: _schedule,
+          urgency: _urgency,
+          serviceType: _serviceType,
+          scheduledAt: _scheduledDateTime,
           diagCount: _diagAnswers.length,
         ),
         const SizedBox(height: 22),
@@ -2000,14 +2094,43 @@ class _SummaryCard extends StatelessWidget {
     required this.vehicle,
     required this.type,
     required this.serviceName,
-    required this.schedule,
+    required this.urgency,
+    required this.serviceType,
+    required this.scheduledAt,
     required this.diagCount,
   });
   final Vehicle? vehicle;
   final String? type;
   final String? serviceName;
-  final String? schedule;
+  final String? urgency;
+  final String? serviceType;
+  final DateTime? scheduledAt;
   final int diagCount;
+
+  String get _urgencyLabel {
+    switch (urgency) {
+      case 'emergency': return 'Emergency';
+      case 'today': return "Today's Job";
+      case 'scheduled': return 'Scheduled Service';
+      default: return '';
+    }
+  }
+
+  String get _serviceTypeLabel {
+    switch (serviceType) {
+      case 'mobile': return 'Mobile Mechanic';
+      case 'garage': return 'Garage Service';
+      default: return '';
+    }
+  }
+
+  String _formatDate(DateTime dt) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day} ${months[dt.month - 1]} · $h:$min $ampm';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2035,14 +2158,23 @@ class _SummaryCard extends StatelessWidget {
           if (vehicle != null) _SummaryRow(
             icon: Icons.directions_car_rounded, color: AppColors.primary, text: vehicle!.displayName),
           const SizedBox(height: 8),
+          if (urgency != null) ...[
+            _SummaryRow(icon: Icons.flash_on_rounded, color: AppColors.warning, text: _urgencyLabel),
+            const SizedBox(height: 8),
+          ],
+          if (serviceType != null) ...[
+            _SummaryRow(icon: Icons.build_rounded, color: AppColors.primary, text: _serviceTypeLabel),
+            const SizedBox(height: 8),
+          ],
           _SummaryRow(icon: typeIcon, color: typeColor, text: typeLabel),
           if (serviceName != null) ...[
             const SizedBox(height: 8),
             _SummaryRow(icon: Icons.label_outline_rounded, color: typeColor, text: serviceName!),
           ],
-          if (schedule != null) ...[
+          if (scheduledAt != null) ...[
             const SizedBox(height: 8),
-            _SummaryRow(icon: Icons.schedule_rounded, color: AppColors.primary, text: schedule!),
+            _SummaryRow(icon: Icons.calendar_month_rounded, color: const Color(0xFF6366F1),
+                text: _formatDate(scheduledAt!)),
           ],
           if (!isService && diagCount > 0) ...[
             const SizedBox(height: 8),

@@ -123,7 +123,7 @@ class _ConfirmEmailScreenState extends ConsumerState<ConfirmEmailScreen> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Tap the link in the email to verify your account, then come back and log in.',
+                  'Tap the link in the email — it will verify your account and bring you straight back into the app.',
                   style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
                   textAlign: TextAlign.center,
                 ),

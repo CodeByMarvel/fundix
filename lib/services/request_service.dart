@@ -9,6 +9,9 @@ class RequestService {
     required double lng,
     String? address,
     String? declaredType,
+    String? urgency,
+    String? serviceType,
+    DateTime? scheduledAt,
   }) async {
     final response = await ApiClient.post('/requests', {
       'vehicleInfo': vehicleInfo,
@@ -19,6 +22,9 @@ class RequestService {
         if (address != null) 'address': address,
         if (declaredType != null) 'declaredType': declaredType,
       },
+      if (urgency != null) 'urgency': urgency,
+      if (serviceType != null) 'serviceType': serviceType,
+      if (scheduledAt != null) 'scheduledAt': scheduledAt.toIso8601String(),
     });
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;

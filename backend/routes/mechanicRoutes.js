@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middleware/authMiddleware');
+const { requireRole } = require('../middleware/roleMiddleware');
 const {
   getProfile,
   patchAvailability,
@@ -9,8 +10,8 @@ const {
   postUpgradeToGarage,
 } = require('../controllers/mechanicController');
 
-// All mechanic routes require auth
-router.use(verifyToken);
+// All mechanic routes require a verified mechanic account
+router.use(verifyToken, requireRole('mechanic'));
 
 router.get('/',                    getProfile);
 router.patch('/availability',      patchAvailability);

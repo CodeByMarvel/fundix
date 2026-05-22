@@ -5,7 +5,7 @@ async function verifyIdToken(idToken) {
   if (error) throw error;
 
   const uid = data.user.id;
-  const { data: userRow } = await supabase.from('users').select('role').eq('id', uid).single();
+  const { data: userRow } = await supabase.from('profiles').select('role').eq('id', uid).single();
   return { uid, email: data.user.email, role: userRow?.role };
 }
 
