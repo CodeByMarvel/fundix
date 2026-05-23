@@ -1,9 +1,9 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/app_config.dart';
 
-// Single point of contact for all calls to the Fundix backend.
+// Single point of contact for all calls to the Fundi-X backend.
 //
 // Every request automatically carries the verified Supabase JWT in the
 // Authorization header. The backend MUST verify this token using the Supabase

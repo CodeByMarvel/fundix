@@ -77,7 +77,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               children: [
                 const SizedBox(height: 48),
                 Text(
-                  'FUNDIX',
+                  'FUNDI-X',
                   style: text.headlineLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     letterSpacing: 4,

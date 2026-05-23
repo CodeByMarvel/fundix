@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/mechanic_type.dart';
 import '../../../models/job_zone.dart';
@@ -318,7 +318,7 @@ class _VerificationBadge extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            isGarage ? 'Fundix Approved Garage' : 'Verified Mobile Technician',
+            isGarage ? 'Fundi-X Approved Garage' : 'Verified Mobile Technician',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
@@ -952,7 +952,7 @@ class _UpgradeToGarageSection extends ConsumerWidget {
           ),
           const SizedBox(height: 14),
           // Benefits list
-          _UpgradeBenefit(text: 'Fundix Approved Garage badge'),
+          _UpgradeBenefit(text: 'Fundi-X Approved Garage badge'),
           _UpgradeBenefit(text: 'Garage photos, team & equipment display'),
           _UpgradeBenefit(text: 'Full service pricing table'),
           _UpgradeBenefit(text: 'Higher job match priority on the platform'),
@@ -982,7 +982,7 @@ class _UpgradeToGarageSection extends ConsumerWidget {
         title: const Text('Upgrade to Garage?'),
         content: const Text(
           'This changes your profile to a garage-based mechanic. '
-          'You will gain the Fundix Approved badge and full garage profile. '
+          'You will gain the Fundi-X Approved badge and full garage profile. '
           'This upgrade cannot be reversed.',
         ),
         actions: [

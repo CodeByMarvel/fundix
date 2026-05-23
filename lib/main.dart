@@ -22,11 +22,11 @@ void main() async {
       authFlowType: AuthFlowType.pkce,
     ),
   );
-  runApp(const ProviderScope(child: FundixApp()));
+  runApp(const ProviderScope(child: FundiXApp()));
 }
 
-class FundixApp extends ConsumerWidget {
-  const FundixApp({super.key});
+class FundiXApp extends ConsumerWidget {
+  const FundiXApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,7 +34,7 @@ class FundixApp extends ConsumerWidget {
     final lang = ref.watch(localeProvider);
 
     return MaterialApp(
-      title: 'Fundix',
+      title: 'Fundi-X',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

@@ -123,7 +123,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               children: [
                 // ── Header ─────────────────────────────────────────────────
                 Text(
-                  'FUNDIX',
+                  'FUNDI-X',
                   textAlign: TextAlign.center,
                   style: text.headlineLarge?.copyWith(
                     fontWeight: FontWeight.bold,

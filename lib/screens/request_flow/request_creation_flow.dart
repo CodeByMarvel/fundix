@@ -11,12 +11,16 @@ import '../../providers/job_notifier.dart';
 void openRequestFlow(
   BuildContext context, {
   String? preselectedVehicleId,
+  String? preselectedType,
+  String? preselectedUrgency,
 }) {
   Navigator.push<void>(
     context,
     PageRouteBuilder(
       pageBuilder: (_, _, _) => RequestCreationFlow(
         preselectedVehicleId: preselectedVehicleId,
+        preselectedType: preselectedType,
+        preselectedUrgency: preselectedUrgency,
       ),
       transitionDuration: const Duration(milliseconds: 320),
       reverseTransitionDuration: const Duration(milliseconds: 250),
@@ -250,9 +254,13 @@ class RequestCreationFlow extends ConsumerStatefulWidget {
   const RequestCreationFlow({
     super.key,
     this.preselectedVehicleId,
+    this.preselectedType,
+    this.preselectedUrgency,
   });
 
   final String? preselectedVehicleId;
+  final String? preselectedType;
+  final String? preselectedUrgency;
 
   @override
   ConsumerState<RequestCreationFlow> createState() => _RequestCreationFlowState();
@@ -289,6 +297,27 @@ class _RequestCreationFlowState extends ConsumerState<RequestCreationFlow> {
   @override
   void initState() {
     super.initState();
+    if (widget.preselectedUrgency == 'emergency') {
+      _urgency = 'emergency';
+      _serviceType = 'mobile';
+      _requestType = 'repair';
+      _step = 3;
+    } else if (widget.preselectedUrgency == 'scheduled') {
+      _urgency = 'scheduled';
+      _serviceType = 'garage';
+      _requestType = 'service';
+      _step = 3;
+    } else if (widget.preselectedUrgency == 'today') {
+      _urgency = 'today';
+      if (widget.preselectedType != null) {
+        _requestType = widget.preselectedType;
+        _step = 2;
+      } else {
+        _step = 1;
+      }
+    } else if (widget.preselectedType != null) {
+      _requestType = widget.preselectedType;
+    }
     if (widget.preselectedVehicleId != null) {
       final vehicles = ref.read(vehicleProvider);
       final activeVehicleId = ref.read(jobProvider).activeVehicleId;

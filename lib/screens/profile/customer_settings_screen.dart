@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme_ext.dart';
@@ -481,7 +481,7 @@ class _CustomerSettingsScreenState extends ConsumerState<CustomerSettingsScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Location Permissions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         content: const Text(
-          'Fundix uses your location to match you with nearby mechanics and provide accurate arrival times.\n\nTo manage location permissions, go to your device Settings → Apps → Fundix → Permissions.',
+          'Fundi-X uses your location to match you with nearby mechanics and provide accurate arrival times.\n\nTo manage location permissions, go to your device Settings → Apps → Fundi-X → Permissions.',
           style: TextStyle(fontSize: 13, color: AppColors.textGrey, height: 1.6),
         ),
         actions: [
@@ -765,7 +765,7 @@ class _CustomerSettingsScreenState extends ConsumerState<CustomerSettingsScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(feature, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         content: Text(
-          '$feature is coming in a future update. We are working to bring you an even more secure Fundix experience.',
+          '$feature is coming in a future update. We are working to bring you an even more secure Fundi-X experience.',
           style: const TextStyle(fontSize: 13, color: AppColors.textGrey, height: 1.5),
         ),
         actions: [
@@ -852,7 +852,7 @@ class _CustomerSettingsScreenState extends ConsumerState<CustomerSettingsScreen>
       ('Can I track the mechanic?', 'Yes. Once a mechanic accepts your request, you can track their arrival in real time on the request screen.'),
       ('What if I\'m not satisfied with the service?', 'You can rate your mechanic after the job. For disputes, use "Report a Problem" in Settings.'),
       ('How do I cancel a request?', 'Open the active request and tap "Cancel". Cancellations are free before a mechanic is assigned.'),
-      ('Is my payment secure?', 'Yes. All payments are processed securely. Fundix never stores your full card details.'),
+      ('Is my payment secure?', 'Yes. All payments are processed securely. Fundi-X never stores your full card details.'),
     ];
 
     showModalBottomSheet(
@@ -903,7 +903,7 @@ class _CustomerSettingsScreenState extends ConsumerState<CustomerSettingsScreen>
             const SizedBox(height: 20),
             _contactOption(context, Icons.chat_bubble_outline_rounded, 'Live Chat', 'Typically replies in under 5 minutes'),
             const SizedBox(height: 10),
-            _contactOption(context, Icons.email_outlined, 'Email Support', 'support@fundix.co.ke'),
+            _contactOption(context, Icons.email_outlined, 'Email Support', 'support@Fundi-X.co.ke'),
             const SizedBox(height: 10),
             _contactOption(context, Icons.phone_outlined, 'Call Us', '+254 800 123 456 (Toll-free)'),
           ],
@@ -1286,22 +1286,22 @@ const _termsContent = '''
 Last updated: May 2026
 
 1. Acceptance of Terms
-By using the Fundix platform, you agree to these Terms & Conditions in full. If you disagree with any part, you may not use our services.
+By using the Fundi-X platform, you agree to these Terms & Conditions in full. If you disagree with any part, you may not use our services.
 
 2. Services
-Fundix connects vehicle owners with independent mechanics. We act as a marketplace and are not directly responsible for the quality of mechanical services provided by independent mechanics on our platform.
+Fundi-X connects vehicle owners with independent mechanics. We act as a marketplace and are not directly responsible for the quality of mechanical services provided by independent mechanics on our platform.
 
 3. User Accounts
-You are responsible for maintaining the confidentiality of your account credentials. You agree to notify Fundix immediately of any unauthorized use of your account.
+You are responsible for maintaining the confidentiality of your account credentials. You agree to notify Fundi-X immediately of any unauthorized use of your account.
 
 4. Payments
-All payments are processed securely through our platform. Service prices are set by mechanics and agreed upon by customers before work begins. Fundix charges a platform fee on each transaction.
+All payments are processed securely through our platform. Service prices are set by mechanics and agreed upon by customers before work begins. Fundi-X charges a platform fee on each transaction.
 
 5. Cancellations
 Cancellations made before a mechanic is assigned are free of charge. Cancellations after assignment may incur a fee as outlined in our cancellation policy.
 
 6. Liability
-Fundix is not liable for any direct, indirect, incidental, or consequential damages arising from the use of our platform or the services provided by mechanics.
+Fundi-X is not liable for any direct, indirect, incidental, or consequential damages arising from the use of our platform or the services provided by mechanics.
 
 7. Changes to Terms
 We reserve the right to modify these terms at any time. Continued use of the platform after changes constitutes acceptance of the new terms.
@@ -1309,7 +1309,7 @@ We reserve the right to modify these terms at any time. Continued use of the pla
 8. Governing Law
 These terms are governed by the laws of the Republic of Kenya.
 
-Contact: legal@fundix.co.ke
+Contact: legal@Fundi-X.co.ke
 ''';
 
 const _privacyContent = '''
@@ -1334,14 +1334,14 @@ We use industry-standard encryption and security practices to protect your infor
 We retain your account data for as long as your account is active. You may request deletion of your account and associated data at any time.
 
 7. Your Rights
-You have the right to access, correct, or delete your personal data. To exercise these rights, contact us at privacy@fundix.co.ke.
+You have the right to access, correct, or delete your personal data. To exercise these rights, contact us at privacy@Fundi-X.co.ke.
 
 8. Cookies
 Our mobile application does not use cookies but may use similar tracking technologies to improve your experience.
 
 9. Children's Privacy
-Fundix is not intended for users under 18 years of age. We do not knowingly collect data from minors.
+Fundi-X is not intended for users under 18 years of age. We do not knowingly collect data from minors.
 
 10. Contact
-For privacy concerns: privacy@fundix.co.ke
+For privacy concerns: privacy@Fundi-X.co.ke
 ''';

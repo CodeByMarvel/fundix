@@ -247,7 +247,7 @@ class _TrustBadge extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            isGarage ? 'Fundix Approved Garage' : 'Verified Mobile Technician',
+            isGarage ? 'Fundi-X Approved Garage' : 'Verified Mobile Technician',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,

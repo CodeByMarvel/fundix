@@ -68,7 +68,7 @@ class RoleSwitcherScreen extends StatelessWidget {
               const Spacer(),
               Center(
                 child: Text(
-                  'FUNDIX · DEV BUILD',
+                  'FUNDI-X · DEV BUILD',
                   style: TextStyle(
                     fontSize: 11,
                     letterSpacing: 2,

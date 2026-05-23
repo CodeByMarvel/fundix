@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_theme_ext.dart';
@@ -489,7 +489,7 @@ class _MechanicSettingsScreenState extends ConsumerState<MechanicSettingsScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Location Permissions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         content: const Text(
-          'Fundix uses your location to connect you with nearby customers and show accurate distances.\n\nTo manage location permissions, go to your device Settings → Apps → Fundix → Permissions.',
+          'Fundi-X uses your location to connect you with nearby customers and show accurate distances.\n\nTo manage location permissions, go to your device Settings → Apps → Fundi-X → Permissions.',
           style: TextStyle(fontSize: 13, color: AppColors.textGrey, height: 1.6),
         ),
         actions: [
@@ -858,7 +858,7 @@ class _MechanicSettingsScreenState extends ConsumerState<MechanicSettingsScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(feature, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         content: Text(
-          '$feature is coming in a future update. We are working to bring you an even more secure Fundix experience.',
+          '$feature is coming in a future update. We are working to bring you an even more secure Fundi-X experience.',
           style: const TextStyle(fontSize: 13, color: AppColors.textGrey, height: 1.5),
         ),
         actions: [
@@ -1119,7 +1119,7 @@ class _MechanicSettingsScreenState extends ConsumerState<MechanicSettingsScreen>
             const SizedBox(height: 20),
             _contactOption(context, Icons.chat_bubble_outline_rounded, 'Live Chat', 'Typically replies in under 5 minutes'),
             const SizedBox(height: 10),
-            _contactOption(context, Icons.email_outlined, 'Email Support', 'mechanics@fundix.co.ke'),
+            _contactOption(context, Icons.email_outlined, 'Email Support', 'mechanics@Fundi-X.co.ke'),
             const SizedBox(height: 10),
             _contactOption(context, Icons.phone_outlined, 'Call Us', '+254 800 123 456 (Toll-free)'),
           ],
@@ -1566,7 +1566,7 @@ const _mechanicGuidelinesContent = '''
 Last updated: May 2026
 
 1. Professional Conduct
-Always maintain a professional and respectful attitude with customers. Your behavior reflects on the entire Fundix platform.
+Always maintain a professional and respectful attitude with customers. Your behavior reflects on the entire Fundi-X platform.
 
 2. Accurate Job Descriptions
 Provide honest and accurate assessments of vehicle issues. Never inflate diagnoses or recommend unnecessary repairs.
@@ -1590,39 +1590,39 @@ Always follow proper safety protocols when working on vehicles. Never perform wo
 Keep your verification documents up to date. Expired documents will result in reduced platform visibility.
 
 9. Payment Processing
-All payments must be processed through the Fundix platform. Off-platform payments are a violation of our terms of service.
+All payments must be processed through the Fundi-X platform. Off-platform payments are a violation of our terms of service.
 
 10. Platform Integrity
 Do not attempt to take customer relationships off-platform. This protects both you and the customer.
 
-For questions: mechanics@fundix.co.ke
+For questions: mechanics@Fundi-X.co.ke
 ''';
 
 const _termsContent = '''
 Last updated: May 2026
 
 1. Acceptance of Terms
-By using the Fundix platform as a mechanic, you agree to these Terms & Conditions in full. If you disagree with any part, you may not use our services.
+By using the Fundi-X platform as a mechanic, you agree to these Terms & Conditions in full. If you disagree with any part, you may not use our services.
 
 2. Services
-Fundix connects vehicle owners with independent mechanics. You operate as an independent service provider, not an employee of Fundix.
+Fundi-X connects vehicle owners with independent mechanics. You operate as an independent service provider, not an employee of Fundi-X.
 
 3. Account Requirements
 You must maintain valid verification documents and comply with all professional requirements to remain active on the platform.
 
 4. Payments & Commissions
-Fundix processes all customer payments and remits your earnings minus the platform commission. Rates are outlined in the Mechanic Agreement.
+Fundi-X processes all customer payments and remits your earnings minus the platform commission. Rates are outlined in the Mechanic Agreement.
 
 5. Cancellations
 Excessive cancellations negatively impact your platform rating and may result in account restrictions.
 
 6. Liability
-You are solely responsible for the quality of mechanical services you provide. Fundix is not liable for damages arising from your work.
+You are solely responsible for the quality of mechanical services you provide. Fundi-X is not liable for damages arising from your work.
 
 7. Governing Law
 These terms are governed by the laws of the Republic of Kenya.
 
-Contact: legal@fundix.co.ke
+Contact: legal@Fundi-X.co.ke
 ''';
 
 const _privacyContent = '''
@@ -1644,8 +1644,8 @@ We share your name, ratings, and skills with customers seeking services. We do n
 We use industry-standard encryption to protect your information and earnings data.
 
 6. Your Rights
-You may request access to, correction of, or deletion of your personal data by contacting privacy@fundix.co.ke.
+You may request access to, correction of, or deletion of your personal data by contacting privacy@Fundi-X.co.ke.
 
 10. Contact
-For privacy concerns: privacy@fundix.co.ke
+For privacy concerns: privacy@Fundi-X.co.ke
 ''';
