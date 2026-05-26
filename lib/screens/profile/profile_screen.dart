@@ -58,15 +58,19 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-class _ProfileHero extends StatelessWidget {
-  const _ProfileHero({required this.lang, required this.user});
-  final String lang;
-  final AppUser? user;
+class _ProfileHero extends ConsumerWidget {
+  const _ProfileHero();
 
   @override
-  Widget build(BuildContext context) {
-    final displayName = user?.name ?? 'You';
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
+    final profileAsync = ref.watch(_customerProfileProvider);
+
+    final displayName = profileAsync.valueOrNull?['name'] as String?
+        ?? user?.name
+        ?? 'You';
     final displayEmail = user?.email ?? '';
+    final displayPhone = profileAsync.valueOrNull?['phone'] as String?;
     final roleLabel = user?.role == UserRole.mechanic ? 'Mechanic' : 'Customer';
 
     return Column(
@@ -75,31 +79,72 @@ class _ProfileHero extends StatelessWidget {
         Stack(
           alignment: Alignment.bottomRight,
           children: [
-            CircleAvatar(
-              radius: 46,
-              backgroundColor: context.primarySurface,
-              child: const Icon(Icons.person_rounded, size: 48, color: AppColors.primary),
-            ),
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: context.surface,
-                shape: BoxShape.circle,
-                border: Border.all(color: context.divider, width: 1.5),
+            GestureDetector(
+              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Photo upload coming soon'),
+                  behavior: SnackBarBehavior.floating,
+                ),
               ),
-              child: Icon(Icons.edit_outlined, size: 14, color: context.textGrey),
+              child: CircleAvatar(
+                radius: 46,
+                backgroundColor: context.primarySurface,
+                child: const Icon(Icons.person_rounded, size: 48, color: AppColors.primary),
+              ),
+            ),
+            GestureDetector(
+              onTap: () => _showEditSheet(context, ref, displayName, displayPhone),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: context.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: context.divider, width: 1.5),
+                ),
+                child: Icon(Icons.edit_outlined, size: 14, color: context.textGrey),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 14),
-        Text(
-          displayName,
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: context.textDark),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          displayEmail,
-          style: TextStyle(fontSize: 13, color: context.textGrey),
+        profileAsync.when(
+          loading: () => Column(
+            children: [
+              Container(
+                width: 120, height: 20,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                width: 170, height: 13,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ],
+          ),
+          error: (_, _) => Column(
+            children: [
+              Text(displayName,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: context.textDark)),
+              const SizedBox(height: 4),
+              Text(displayEmail,
+                  style: TextStyle(fontSize: 13, color: context.textGrey)),
+            ],
+          ),
+          data: (_) => Column(
+            children: [
+              Text(displayName,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: context.textDark)),
+              const SizedBox(height: 4),
+              Text(displayEmail,
+                  style: TextStyle(fontSize: 13, color: context.textGrey)),
+            ],
+          ),
         ),
         const SizedBox(height: 10),
         Container(
@@ -114,6 +159,227 @@ class _ProfileHero extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
+      ],
+    );
+  }
+
+  void _showEditSheet(
+      BuildContext context, WidgetRef ref, String name, String? phone) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ProfileEditSheet(
+        currentName: name,
+        currentPhone: phone ?? '',
+        onSaved: () => ref.invalidate(_customerProfileProvider),
+      ),
+    );
+  }
+}
+
+// ── Profile edit sheet ────────────────────────────────────────────────────────
+
+class _ProfileEditSheet extends StatefulWidget {
+  const _ProfileEditSheet({
+    required this.currentName,
+    required this.currentPhone,
+    required this.onSaved,
+  });
+  final String currentName;
+  final String currentPhone;
+  final VoidCallback onSaved;
+
+  @override
+  State<_ProfileEditSheet> createState() => _ProfileEditSheetState();
+}
+
+class _ProfileEditSheetState extends State<_ProfileEditSheet> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _phoneCtrl;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.currentName);
+    _phoneCtrl = TextEditingController(text: widget.currentPhone);
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+    setState(() => _saving = true);
+    final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await CustomerApiService.updateProfile(
+        name: name.isNotEmpty ? name : null,
+        phone: phone.isNotEmpty ? phone : null,
+      );
+      widget.onSaved();
+      if (mounted) nav.pop();
+    } catch (_) {
+      if (mounted) {
+        setState(() => _saving = false);
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Could not save changes. Please try again.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const Text('Edit Profile',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textDark)),
+            const SizedBox(height: 20),
+            Center(
+              child: GestureDetector(
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Photo upload coming soon'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                ),
+                child: Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    const CircleAvatar(
+                      radius: 40,
+                      backgroundColor: AppColors.primarySurface,
+                      child: Icon(Icons.person_rounded,
+                          size: 42, color: AppColors.primary),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: AppColors.background, width: 2),
+                      ),
+                      child: const Icon(Icons.camera_alt_rounded,
+                          size: 12, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _EditField(label: 'Full Name', controller: _nameCtrl),
+            const SizedBox(height: 14),
+            _EditField(
+              label: 'Phone Number',
+              controller: _phoneCtrl,
+              keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _save,
+                child: _saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Save Changes',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EditField extends StatelessWidget {
+  const _EditField({
+    required this.label,
+    required this.controller,
+    this.keyboardType,
+  });
+  final String label;
+  final TextEditingController controller;
+  final TextInputType? keyboardType;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textDark)),
+        const SizedBox(height: 5),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: AppColors.surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.divider),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.divider),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide:
+                  const BorderSide(color: AppColors.primary, width: 1.5),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          style: const TextStyle(fontSize: 14, color: AppColors.textDark),
+        ),
       ],
     );
   }
@@ -187,6 +453,7 @@ class _VehiclesSheet extends ConsumerStatefulWidget {
 
 class _VehiclesSheetState extends ConsumerState<_VehiclesSheet> {
   bool _showForm = false;
+  bool _saving = false;
   final _makeCtrl = TextEditingController();
   final _modelCtrl = TextEditingController();
   final _yearCtrl = TextEditingController();
@@ -206,30 +473,58 @@ class _VehiclesSheetState extends ConsumerState<_VehiclesSheet> {
     super.dispose();
   }
 
-  void _saveVehicle() {
+  Future<void> _saveVehicle() async {
     if (!_formValid) return;
-    final year = int.tryParse(_yearCtrl.text.trim()) ?? DateTime.now().year;
-    final v = Vehicle(
-      id: 'v_${DateTime.now().millisecondsSinceEpoch}',
-      brand: _makeCtrl.text.trim(),
-      model: _modelCtrl.text.trim(),
-      year: year,
-      fuelType: _fuelType,
-      transmission: _transmission,
-      bodyType: 'Sedan',
-    );
-    ref.read(vehicleProvider.notifier).addVehicle(v);
-    setState(() {
-      _showForm = false;
-      _makeCtrl.clear();
-      _modelCtrl.clear();
-      _yearCtrl.clear();
-    });
+    setState(() => _saving = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await CustomerApiService.addVehicle({
+        'brand': _makeCtrl.text.trim(),
+        'model': _modelCtrl.text.trim(),
+        'year': int.tryParse(_yearCtrl.text.trim()) ?? DateTime.now().year,
+        'fuel_type': _fuelType,
+        'transmission': _transmission,
+        'body_type': 'Sedan',
+      });
+      ref.invalidate(_customerVehiclesProvider);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _showForm = false;
+          _makeCtrl.clear();
+          _modelCtrl.clear();
+          _yearCtrl.clear();
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _saving = false);
+        messenger.showSnackBar(const SnackBar(
+          content: Text('Could not save vehicle. Please try again.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
+
+  Future<void> _removeVehicle(String id) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await CustomerApiService.deleteVehicle(id);
+      ref.invalidate(_customerVehiclesProvider);
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text('Could not remove vehicle. Please try again.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final vehicles = ref.watch(vehicleProvider);
+    final vehiclesAsync = ref.watch(_customerVehiclesProvider);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
@@ -242,16 +537,16 @@ class _VehiclesSheetState extends ConsumerState<_VehiclesSheet> {
         ),
         child: Column(
           children: [
-            // Handle bar
             Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 4),
               child: Container(
                 width: 36, height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.divider, borderRadius: BorderRadius.circular(2)),
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-            // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: Row(
@@ -271,39 +566,59 @@ class _VehiclesSheetState extends ConsumerState<_VehiclesSheet> {
             ),
             const Divider(color: AppColors.divider, height: 16),
             Expanded(
-              child: ListView(
-                controller: controller,
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                children: [
-                  if (_showForm) ...[
-                    _VehicleAddForm(
-                      makeCtrl: _makeCtrl,
-                      modelCtrl: _modelCtrl,
-                      yearCtrl: _yearCtrl,
-                      fuelType: _fuelType,
-                      transmission: _transmission,
-                      formValid: _formValid,
-                      onFuelTypeChanged: (v) => setState(() => _fuelType = v),
-                      onTransmissionChanged: (v) => setState(() => _transmission = v),
-                      onSave: _saveVehicle,
-                      onCancel: () => setState(() => _showForm = false),
-                    ),
-                    const SizedBox(height: 16),
-                    const Divider(color: AppColors.divider),
-                    const SizedBox(height: 16),
-                  ],
-                  if (vehicles.isEmpty && !_showForm)
-                    _EmptyVehiclesState(onAdd: () => setState(() => _showForm = true))
-                  else ...[
-                    ...vehicles.map((v) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _VehicleTile(
-                            vehicle: v,
-                            onRemove: () => ref.read(vehicleProvider.notifier).removeVehicle(v.id),
-                          ),
-                        )),
-                  ],
-                ],
+              child: vehiclesAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (_, _) => Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Could not load vehicles',
+                          style: TextStyle(color: AppColors.textGrey)),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () => ref.invalidate(_customerVehiclesProvider),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+                data: (records) {
+                  final vehicles = records.map(Vehicle.fromJson).toList();
+                  return ListView(
+                    controller: controller,
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                    children: [
+                      if (_showForm) ...[
+                        _VehicleAddForm(
+                          makeCtrl: _makeCtrl,
+                          modelCtrl: _modelCtrl,
+                          yearCtrl: _yearCtrl,
+                          fuelType: _fuelType,
+                          transmission: _transmission,
+                          formValid: _formValid && !_saving,
+                          onFuelTypeChanged: (v) => setState(() => _fuelType = v),
+                          onTransmissionChanged: (v) => setState(() => _transmission = v),
+                          onSave: () { _saveVehicle(); },
+                          onCancel: () => setState(() => _showForm = false),
+                        ),
+                        const SizedBox(height: 16),
+                        const Divider(color: AppColors.divider),
+                        const SizedBox(height: 16),
+                      ],
+                      if (vehicles.isEmpty && !_showForm)
+                        _EmptyVehiclesState(onAdd: () => setState(() => _showForm = true))
+                      else ...[
+                        ...vehicles.map((v) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _VehicleTile(
+                                vehicle: v,
+                                onRemove: () => _removeVehicle(v.id),
+                              ),
+                            )),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
           ],
