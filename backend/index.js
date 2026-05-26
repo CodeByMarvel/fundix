@@ -9,6 +9,7 @@ const requestRoutes = require('./routes/requestRoutes');
 const diagnosisRoutes = require('./routes/diagnosisRoutes');
 const zoneRoutes = require('./routes/zoneRoutes');
 const mechanicRoutes = require('./routes/mechanicRoutes');
+const customerRoutes = require('./routes/customerRoutes');
 const { errorHandler } = require('./middleware/errorMiddleware');
 
 const app = express();
@@ -35,6 +36,7 @@ app.use('/requests', requestRoutes);
 app.use('/diagnose', diagnosisRoutes);
 app.use('/zones', zoneRoutes);
 app.use('/mechanics', mechanicRoutes);
+app.use('/customers', customerRoutes);
 
 app.use(errorHandler);
 

@@ -66,6 +66,7 @@ class AuthService {
       final res = await _auth.signUp(
         email: email.trim().toLowerCase(),
         password: password,
+        emailRedirectTo: 'fundix://login-callback/',
         data: {
           'role': role.name,
           'name': name.trim(),
@@ -94,6 +95,7 @@ class AuthService {
       await _auth.resend(
         type: OtpType.signup,
         email: email,
+        emailRedirectTo: 'fundix://login-callback/',
       );
       return null;
     } on AuthException catch (e) {

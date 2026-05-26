@@ -4,11 +4,21 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme_ext.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/locale_provider.dart';
-import '../../providers/vehicle_provider.dart';
 import '../../models/app_user.dart';
 import '../../models/vehicle.dart';
+import '../../services/customer_api_service.dart';
 import '../dev/role_switcher.dart';
 import 'customer_settings_screen.dart';
+
+final _customerProfileProvider =
+    FutureProvider<Map<String, dynamic>>((ref) async {
+  return CustomerApiService.getProfile();
+});
+
+final _customerVehiclesProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  return CustomerApiService.getVehicles();
+});
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -16,7 +26,6 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lang = ref.watch(localeProvider);
-    final user = ref.watch(authProvider).user;
     return Scaffold(
       backgroundColor: context.bg,
       appBar: AppBar(
@@ -34,7 +43,7 @@ class ProfileScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         children: [
-          _ProfileHero(lang: lang, user: user),
+          const _ProfileHero(),
           const SizedBox(height: 28),
           _AccountMenu(lang: lang),
           const SizedBox(height: 12),
