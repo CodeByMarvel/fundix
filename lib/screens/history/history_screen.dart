@@ -61,7 +61,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
       body: history.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => _ErrorState(
-          message: e.toString(),
+          error: e,
           onRetry: () => ref.invalidate(_historyProvider),
         ),
         data: (records) {
@@ -129,31 +129,64 @@ class _EmptyState extends StatelessWidget {
 // ── Error state ────────────────────────────────────────────────────────────────
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
-  final String message;
+  const _ErrorState({required this.error, required this.onRetry});
+  final Object error;
   final VoidCallback onRetry;
+
+  bool _isNetworkError() {
+    final msg = error.toString().toLowerCase();
+    return msg.contains('socketexception') ||
+        msg.contains('connection refused') ||
+        msg.contains('network') ||
+        msg.contains('timeout') ||
+        msg.contains('host lookup') ||
+        msg.contains('no address');
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isNetwork = _isNetworkError();
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_off_rounded, size: 48, color: AppColors.textGrey),
-            const SizedBox(height: 16),
-            const Text('Could not load history',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textDark)),
-            const SizedBox(height: 8),
-            Text(message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: AppColors.textGrey)),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.primarySurface,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isNetwork ? Icons.wifi_off_rounded : Icons.error_outline_rounded,
+                size: 40,
+                color: AppColors.textGrey,
+              ),
+            ),
             const SizedBox(height: 20),
-            ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
+            Text(
+              isNetwork ? 'No internet connection' : 'Could not load history',
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isNetwork
+                  ? 'Please check your network and try again.'
+                  : 'Something went wrong on our end. Please try again.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 14, color: AppColors.textGrey, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Try Again'),
+            ),
           ],
         ),
       ),

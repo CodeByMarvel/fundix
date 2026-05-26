@@ -1,25 +1,32 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/mechanic_type.dart';
 import '../../../models/job_zone.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_theme_ext.dart';
 import '../../../providers/locale_provider.dart';
-import '../../../providers/mechanic_availability_provider.dart'; // isOnline drives the status chip
+import '../../../providers/mechanic_availability_provider.dart';
+import '../../../services/mechanic_api_service.dart';
 import '../../dev/role_switcher.dart';
 import 'mechanic_settings_screen.dart';
 
-// ── State ──────────────────────────────────────────────────────────────────────
+// ── Providers ──────────────────────────────────────────────────────────────────
 
 // Simulates the persistent account type — in production this comes from Supabase.
-// Defaults to mobile because most new signups are mobile mechanics.
-// Can only move garage; going back is not allowed.
 final mechanicAccountTypeProvider = StateProvider<MechanicType>((_) => MechanicType.mobile);
-
 final _operatingStatusProvider = StateProvider<String>((_) => 'Open now');
-final _mechanicSkillsProvider = StateProvider<List<String>>(
-  (_) => ['Engine Diagnostics', 'Brake Service', 'Suspension', 'Japanese Cars'],
-);
+
+final mechanicProfileProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  return MechanicApiService.getProfile();
+});
+
+final mechanicServicesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  return MechanicApiService.getServices();
+});
+
+final mechanicReviewsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  return MechanicApiService.getReviews();
+});
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -41,26 +48,8 @@ const _mobileBestFor = [
   'Best for quick inspections',
 ];
 
-const _garageServices = [
-  ('Diagnostics', 'KES 1,500 – 3,000'),
-  ('Brake Service', 'KES 2,500 – 6,000'),
-  ('Suspension Check', 'KES 3,000 – 8,000'),
-  ('Accident Repair', 'Inspection required'),
-  ('Oil Change', 'KES 1,200 – 2,500'),
-  ('Wheel Alignment', 'KES 1,500 – 2,500'),
-];
-
-const _mobileServices = [
-  ('Battery Jumpstart', 'KES 500 – 1,000'),
-  ('Tire Replacement', 'KES 800 – 1,500'),
-  ('Basic Diagnostics', 'KES 1,000 – 2,000'),
-  ('Overheating Inspection', 'KES 800 – 1,500'),
-  ('Minor Electrical', 'KES 600 – 1,200'),
-];
-
 const _equipment = ['Diagnostic Scanner', 'Hydraulic Lift', 'Spray Booth', 'Wheel Alignment'];
 const _operatingStatuses = ['Open now', 'Busy', 'Appointment only'];
-
 
 // ── Main Screen ────────────────────────────────────────────────────────────────
 
@@ -84,22 +73,20 @@ class MechanicProfileScreen extends ConsumerWidget {
               delegate: SliverChildListDelegate([
                 _SpecializationSection(accountType: accountType),
                 const SizedBox(height: 16),
-                // Garage profile shows full garage layer; mobile shows their limited info
                 if (accountType == MechanicType.garage)
-                  _GarageTrustLayer()
+                  const _GarageTrustLayer()
                 else
-                  _MobileInfoSection(),
+                  const _MobileInfoSection(),
                 const SizedBox(height: 16),
                 _ServicesSection(accountType: accountType),
                 const SizedBox(height: 16),
-                _CustomerReviewsSection(),
+                const _CustomerReviewsSection(),
                 const SizedBox(height: 16),
-                // Mobile mechanics see an upgrade path; garage mechanics cannot go back
                 if (accountType == MechanicType.mobile) ...[
-                  _UpgradeToGarageSection(),
+                  const _UpgradeToGarageSection(),
                   const SizedBox(height: 16),
                 ],
-                _SectionDivider(label: 'Account'),
+                const _SectionDivider(label: 'Account'),
                 const SizedBox(height: 12),
                 _MechanicMenu(lang: lang),
                 const SizedBox(height: 12),
@@ -155,7 +142,9 @@ class _TrustHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isOnline = ref.watch(mechanicIsOnlineProvider);
     final operatingStatus = ref.watch(_operatingStatusProvider);
+    final profileAsync = ref.watch(mechanicProfileProvider);
     final isGarage = accountType == MechanicType.garage;
+    final profile = profileAsync.valueOrNull;
 
     return Container(
       color: context.surface,
@@ -166,39 +155,44 @@ class _TrustHeader extends ConsumerWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Garage = square rounded tile; Mobile = circle avatar
-              Stack(
-                children: [
-                  isGarage
-                      ? Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: context.primarySurface,
-                            borderRadius: BorderRadius.circular(16),
+              // Avatar — tapping opens photo picker (placeholder)
+              GestureDetector(
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Photo upload coming soon')),
+                ),
+                child: Stack(
+                  children: [
+                    isGarage
+                        ? Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: context.primarySurface,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Icon(Icons.store_rounded, size: 40, color: AppColors.primary),
+                          )
+                        : CircleAvatar(
+                            radius: 40,
+                            backgroundColor: context.primarySurface,
+                            child: const Icon(Icons.person_rounded, size: 40, color: AppColors.primary),
                           ),
-                          child: const Icon(Icons.store_rounded, size: 40, color: AppColors.primary),
-                        )
-                      : CircleAvatar(
-                          radius: 40,
-                          backgroundColor: context.primarySurface,
-                          child: const Icon(Icons.person_rounded, size: 40, color: AppColors.primary),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: context.surface, width: 2),
                         ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: context.surface, width: 2),
+                        child: const Icon(Icons.camera_alt_rounded, size: 12, color: Colors.white),
                       ),
-                      child: const Icon(Icons.camera_alt_rounded, size: 12, color: Colors.white),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -208,18 +202,35 @@ class _TrustHeader extends ConsumerWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            isGarage ? 'Kings Auto Garage' : 'Your Name',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: context.textDark,
+                          child: profileAsync.when(
+                            loading: () => Container(
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: context.divider,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
                             ),
-                            overflow: TextOverflow.ellipsis,
+                            error: (_, _) => Text(
+                              'Could not load profile',
+                              style: TextStyle(fontSize: 14, color: context.textGrey),
+                            ),
+                            data: (p) => Text(
+                              (isGarage ? p['garage_name'] : p['name']) as String? ??
+                                  (isGarage ? 'Your Garage' : 'Your Name'),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: context.textDark,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 4),
-                        Icon(Icons.edit_outlined, size: 16, color: context.textGrey),
+                        GestureDetector(
+                          onTap: () => _showEditSheet(context, ref, profile),
+                          child: Icon(Icons.edit_outlined, size: 16, color: context.textGrey),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 5),
@@ -229,42 +240,34 @@ class _TrustHeader extends ConsumerWidget {
                       children: [
                         Icon(Icons.location_on_rounded, size: 13, color: context.textGrey),
                         const SizedBox(width: 3),
-                        Text(
-                          isGarage ? 'Westlands, Nairobi' : 'Serves: Westlands, Kilimani',
-                          style: TextStyle(fontSize: 12, color: context.textGrey),
+                        Expanded(
+                          child: Text(
+                            profile?['location'] as String? ??
+                                (isGarage ? 'Westlands, Nairobi' : 'Your area'),
+                            style: TextStyle(fontSize: 12, color: context.textGrey),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
+                    if (profile?['bio'] != null) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        profile!['bio'] as String,
+                        style: TextStyle(fontSize: 12, color: context.textGrey, height: 1.4),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              ...List.generate(5, (i) => Icon(
-                i < 4 ? Icons.star_rounded : Icons.star_half_rounded,
-                size: 16,
-                color: AppColors.warning,
-              )),
-              const SizedBox(width: 6),
-              Text(
-                '4.8',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.textDark),
-              ),
-              const SizedBox(width: 4),
-              Text('(47 reviews)', style: TextStyle(fontSize: 12, color: context.textGrey)),
-              const SizedBox(width: 8),
-              Container(width: 1, height: 12, color: context.divider),
-              const SizedBox(width: 8),
-              Icon(Icons.check_circle_rounded, size: 13, color: AppColors.success),
-              const SizedBox(width: 3),
-              Text('124 jobs', style: TextStyle(fontSize: 12, color: context.textGrey)),
-            ],
-          ),
+          // Rating row — only shown when data is loaded
+          if (profile != null) _RatingRow(profile: profile),
           const SizedBox(height: 12),
-          // Status chip: offline overrides the operating status choice
           GestureDetector(
             onTap: isOnline ? () => _showStatusPicker(context, ref) : null,
             child: _OperatingStatusChip(
@@ -277,6 +280,18 @@ class _TrustHeader extends ConsumerWidget {
     );
   }
 
+  void _showEditSheet(BuildContext context, WidgetRef ref, Map<String, dynamic>? profile) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ProfileEditSheet(
+        profile: profile,
+        onSaved: () => ref.invalidate(mechanicProfileProvider),
+      ),
+    );
+  }
+
   void _showStatusPicker(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
@@ -285,6 +300,184 @@ class _TrustHeader extends ConsumerWidget {
         current: ref.read(_operatingStatusProvider),
         onSelect: (s) => ref.read(_operatingStatusProvider.notifier).state = s,
       ),
+    );
+  }
+}
+
+class _RatingRow extends StatelessWidget {
+  const _RatingRow({required this.profile});
+  final Map<String, dynamic> profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final rating = (profile['rating'] as num?)?.toDouble() ?? 0.0;
+    final reviewsCount = (profile['reviews_count'] as num?)?.toInt() ?? 0;
+    final jobsCount = (profile['jobs_count'] as num?)?.toInt() ?? 0;
+
+    return Row(
+      children: [
+        ...List.generate(5, (i) => Icon(
+          i < rating.floor()
+              ? Icons.star_rounded
+              : (i < rating ? Icons.star_half_rounded : Icons.star_border_rounded),
+          size: 16,
+          color: AppColors.warning,
+        )),
+        const SizedBox(width: 6),
+        Text(
+          rating.toStringAsFixed(1),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.textDark),
+        ),
+        const SizedBox(width: 4),
+        Text('($reviewsCount reviews)', style: TextStyle(fontSize: 12, color: context.textGrey)),
+        const SizedBox(width: 8),
+        Container(width: 1, height: 12, color: context.divider),
+        const SizedBox(width: 8),
+        Icon(Icons.check_circle_rounded, size: 13, color: AppColors.success),
+        const SizedBox(width: 3),
+        Text('$jobsCount jobs', style: TextStyle(fontSize: 12, color: context.textGrey)),
+      ],
+    );
+  }
+}
+
+// ── Profile Edit Sheet ─────────────────────────────────────────────────────────
+
+class _ProfileEditSheet extends StatefulWidget {
+  const _ProfileEditSheet({required this.profile, required this.onSaved});
+  final Map<String, dynamic>? profile;
+  final VoidCallback onSaved;
+
+  @override
+  State<_ProfileEditSheet> createState() => _ProfileEditSheetState();
+}
+
+class _ProfileEditSheetState extends State<_ProfileEditSheet> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _locationCtrl;
+  late final TextEditingController _bioCtrl;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.profile;
+    _nameCtrl = TextEditingController(
+      text: p?['name'] as String? ?? p?['garage_name'] as String? ?? '',
+    );
+    _locationCtrl = TextEditingController(text: p?['location'] as String? ?? '');
+    _bioCtrl = TextEditingController(text: p?['bio'] as String? ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _locationCtrl.dispose();
+    _bioCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_nameCtrl.text.trim().isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      await MechanicApiService.updateProfile(
+        name: _nameCtrl.text.trim(),
+        location: _locationCtrl.text.trim().isEmpty ? null : _locationCtrl.text.trim(),
+        bio: _bioCtrl.text.trim().isEmpty ? null : _bioCtrl.text.trim(),
+      );
+      widget.onSaved();
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save changes. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + MediaQuery.of(context).padding.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: context.divider, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            Text('Edit Profile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.textDark)),
+            const SizedBox(height: 20),
+            _EditField(label: 'Name', controller: _nameCtrl, hint: 'Your name or garage name'),
+            const SizedBox(height: 12),
+            _EditField(label: 'Location', controller: _locationCtrl, hint: 'e.g. Westlands, Nairobi'),
+            const SizedBox(height: 12),
+            _EditField(label: 'Bio', controller: _bioCtrl, hint: 'Short description about you', maxLines: 3),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _save,
+                style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                child: _saving
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Save Changes'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EditField extends StatelessWidget {
+  const _EditField({
+    required this.label,
+    required this.controller,
+    required this.hint,
+    this.maxLines = 1,
+  });
+  final String label;
+  final TextEditingController controller;
+  final String hint;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.textDark)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          maxLines: maxLines,
+          style: TextStyle(fontSize: 14, color: context.textDark),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: context.textGrey),
+            filled: true,
+            fillColor: context.surface,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: context.divider)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: context.divider)),
+            focusedBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+              borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -363,7 +556,6 @@ class _OperatingStatusChip extends StatelessWidget {
           Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 6),
           Text(status, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
-          // Arrow hidden when offline — chip is not tappable in that state
           if (isOnline) ...[
             const SizedBox(width: 4),
             Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: color),
@@ -382,7 +574,7 @@ class _SpecializationSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final skills = ref.watch(_mechanicSkillsProvider);
+    final profileAsync = ref.watch(mechanicProfileProvider);
     final bestFor = accountType == MechanicType.garage ? _garageBestFor : _mobileBestFor;
 
     return _SectionCard(
@@ -393,36 +585,52 @@ class _SpecializationSection extends ConsumerWidget {
             icon: Icons.workspace_premium_rounded,
             label: 'Specialization',
             actionLabel: 'Edit',
-            onAction: () => _showSkillsEditor(context, ref, skills),
+            onAction: () => _showSkillsEditor(context, ref, profileAsync.valueOrNull),
           ),
           const SizedBox(height: 4),
           Text('What you are great at', style: TextStyle(fontSize: 11, color: context.textGrey)),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ...skills.map((s) => _SkillChip(label: s)),
-              GestureDetector(
-                onTap: () => _showSkillsEditor(context, ref, skills),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: context.bg,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 1.2),
+          profileAsync.when(
+            loading: () => const Center(child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )),
+            error: (_, _) => _RetryTile(onRetry: () => ref.invalidate(mechanicProfileProvider)),
+            data: (p) {
+              final rawSkills = p['skills'] as List<dynamic>?;
+              final skills = rawSkills?.cast<String>() ?? <String>[];
+              if (skills.isEmpty) {
+                return _EmptySkillsPrompt(
+                  onAdd: () => _showSkillsEditor(context, ref, p),
+                );
+              }
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...skills.map((s) => _SkillChip(label: s)),
+                  GestureDetector(
+                    onTap: () => _showSkillsEditor(context, ref, p),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: context.bg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 1.2),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add_rounded, size: 13, color: AppColors.primary),
+                          SizedBox(width: 3),
+                          Text('Add', style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.add_rounded, size: 13, color: AppColors.primary),
-                      SizedBox(width: 3),
-                      Text('Add', style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
           const SizedBox(height: 16),
           Row(
@@ -443,14 +651,61 @@ class _SpecializationSection extends ConsumerWidget {
     );
   }
 
-  void _showSkillsEditor(BuildContext context, WidgetRef ref, List<String> currentSkills) {
+  void _showSkillsEditor(BuildContext context, WidgetRef ref, Map<String, dynamic>? profile) {
+    final rawSkills = profile?['skills'] as List<dynamic>?;
+    final currentSkills = rawSkills?.cast<String>() ?? <String>[];
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _SkillsEditorSheet(
         currentSkills: currentSkills,
-        onSave: (updated) => ref.read(_mechanicSkillsProvider.notifier).state = updated,
+        onSave: (updated) => _saveSkills(ref, updated),
+      ),
+    );
+  }
+
+  Future<void> _saveSkills(WidgetRef ref, List<String> newSkills) async {
+    await MechanicApiService.updateSkills(newSkills);
+    // Auto-sync services: preserve prices for unchanged skills, null for new
+    final currentServices = ref.read(mechanicServicesProvider).valueOrNull ?? [];
+    final priceMap = {for (final s in currentServices) s['name'] as String: s['price']};
+    final merged = newSkills.map((skill) => <String, dynamic>{
+      'name': skill,
+      'price': priceMap[skill],
+    }).toList();
+    await MechanicApiService.updateServices(merged);
+    ref.invalidate(mechanicProfileProvider);
+    ref.invalidate(mechanicServicesProvider);
+  }
+}
+
+class _EmptySkillsPrompt extends StatelessWidget {
+  const _EmptySkillsPrompt({required this.onAdd});
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onAdd,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.primarySurface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_circle_outline_rounded, color: AppColors.primary, size: 18),
+            SizedBox(width: 8),
+            Text(
+              'Add your specializations',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -522,7 +777,7 @@ class _GarageTrustLayer extends StatelessWidget {
                 const SizedBox(width: 10),
                 _GaragePhotoSlot(label: 'Equipment'),
                 const SizedBox(width: 10),
-                _GaragePhotoAdd(),
+                const _GaragePhotoAdd(),
               ],
             ),
           ),
@@ -669,8 +924,6 @@ class _MobileInfoSection extends StatelessWidget {
           const SizedBox(height: 16),
           Text('Operates In', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.textDark)),
           const SizedBox(height: 8),
-          // Zone type badge — this is the job environment classification, not just geography.
-          // Mobile Tier 1 mechanics only accept jobs in Controlled Mobile Zones.
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
@@ -719,8 +972,10 @@ class _MobileInfoSection extends StatelessWidget {
                 Icon(Icons.shield_outlined, size: 16, color: green),
                 SizedBox(width: 8),
                 Expanded(
-                  child: Text('Only accepts jobs in verified safe zones.',
-                      style: TextStyle(fontSize: 12, color: green, fontWeight: FontWeight.w500)),
+                  child: Text(
+                    'Only accepts jobs in verified safe zones.',
+                    style: TextStyle(fontSize: 12, color: green, fontWeight: FontWeight.w500),
+                  ),
                 ),
               ],
             ),
@@ -802,43 +1057,81 @@ class _ZoneTypeChip extends StatelessWidget {
 
 // ── Services Section ───────────────────────────────────────────────────────────
 
-class _ServicesSection extends StatelessWidget {
+class _ServicesSection extends ConsumerWidget {
   const _ServicesSection({required this.accountType});
   final MechanicType accountType;
 
   @override
-  Widget build(BuildContext context) {
-    final services = accountType == MechanicType.garage ? _garageServices : _mobileServices;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final servicesAsync = ref.watch(mechanicServicesProvider);
 
     return _SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionHeader(icon: Icons.handyman_rounded, label: 'Services Offered', actionLabel: 'Edit', onAction: () {}),
+          _SectionHeader(
+            icon: Icons.handyman_rounded,
+            label: 'Services Offered',
+            actionLabel: 'Edit Prices',
+            onAction: () => _showPriceEditor(context, ref, servicesAsync.valueOrNull),
+          ),
           const SizedBox(height: 4),
           Text('Transparent pricing reduces customer hesitation', style: TextStyle(fontSize: 11, color: context.textGrey)),
           const SizedBox(height: 12),
-          Container(
-            decoration: BoxDecoration(border: Border.all(color: context.divider), borderRadius: BorderRadius.circular(10)),
-            child: Column(
-              children: [
-                for (int i = 0; i < services.length; i++)
-                  _ServiceRow(name: services[i].$1, range: services[i].$2, showDivider: i < services.length - 1),
-              ],
-            ),
+          servicesAsync.when(
+            loading: () => const Center(child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )),
+            error: (_, _) => _RetryTile(onRetry: () => ref.invalidate(mechanicServicesProvider)),
+            data: (services) {
+              if (services.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Center(
+                    child: Text(
+                      'Add specializations to auto-populate your services.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: context.textGrey, height: 1.5),
+                    ),
+                  ),
+                );
+              }
+              return Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: context.divider),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  children: [
+                    for (int i = 0; i < services.length; i++)
+                      _ServiceRow(
+                        name: services[i]['name'] as String,
+                        price: services[i]['price'] as int?,
+                        showDivider: i < services.length - 1,
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
           if (accountType == MechanicType.mobile) ...[
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: const Row(
                 children: [
                   Icon(Icons.info_outline_rounded, size: 13, color: AppColors.warning),
                   SizedBox(width: 6),
                   Expanded(
-                    child: Text('Mobile services are limited to roadside-safe jobs only.',
-                        style: TextStyle(fontSize: 11, color: AppColors.warning)),
+                    child: Text(
+                      'Mobile services are limited to roadside-safe jobs only.',
+                      style: TextStyle(fontSize: 11, color: AppColors.warning),
+                    ),
                   ),
                 ],
               ),
@@ -848,12 +1141,30 @@ class _ServicesSection extends StatelessWidget {
       ),
     );
   }
+
+  void _showPriceEditor(BuildContext context, WidgetRef ref, List<Map<String, dynamic>>? services) {
+    if (services == null || services.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add specializations first to set prices.')),
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ServicesPriceSheet(
+        services: services,
+        onSaved: () => ref.invalidate(mechanicServicesProvider),
+      ),
+    );
+  }
 }
 
 class _ServiceRow extends StatelessWidget {
-  const _ServiceRow({required this.name, required this.range, this.showDivider = true});
+  const _ServiceRow({required this.name, required this.price, this.showDivider = true});
   final String name;
-  final String range;
+  final int? price;
   final bool showDivider;
 
   @override
@@ -865,7 +1176,10 @@ class _ServiceRow extends StatelessWidget {
           child: Row(
             children: [
               Expanded(child: Text(name, style: TextStyle(fontSize: 13, color: context.textDark, fontWeight: FontWeight.w500))),
-              Text(range, style: TextStyle(fontSize: 12, color: context.textGrey)),
+              if (price != null)
+                Text('KES ${price.toString()}', style: TextStyle(fontSize: 12, color: context.textGrey))
+              else
+                Text('Price not set', style: TextStyle(fontSize: 12, color: context.textGrey, fontStyle: FontStyle.italic)),
             ],
           ),
         ),
@@ -875,32 +1189,177 @@ class _ServiceRow extends StatelessWidget {
   }
 }
 
-// ── Customer Reviews Section ───────────────────────────────────────────────────
+// ── Services Price Editor Sheet ────────────────────────────────────────────────
 
-class _CustomerReviewsSection extends StatelessWidget {
-  const _CustomerReviewsSection();
+class _ServicesPriceSheet extends StatefulWidget {
+  const _ServicesPriceSheet({required this.services, required this.onSaved});
+  final List<Map<String, dynamic>> services;
+  final VoidCallback onSaved;
+
+  @override
+  State<_ServicesPriceSheet> createState() => _ServicesPriceSheetState();
+}
+
+class _ServicesPriceSheetState extends State<_ServicesPriceSheet> {
+  late final List<TextEditingController> _controllers;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = widget.services.map((s) {
+      final price = s['price'] as int?;
+      return TextEditingController(text: price != null ? price.toString() : '');
+    }).toList();
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers) { c.dispose(); }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final updated = List<Map<String, dynamic>>.generate(widget.services.length, (i) {
+        final raw = _controllers[i].text.trim();
+        final price = raw.isEmpty ? null : int.tryParse(raw);
+        return {'name': widget.services[i]['name'], 'price': price};
+      });
+      await MechanicApiService.updateServices(updated);
+      widget.onSaved();
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save prices. Please try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + MediaQuery.of(context).padding.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: context.divider, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            Text('Edit Service Prices', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.textDark)),
+            const SizedBox(height: 4),
+            Text('Leave blank if price is variable', style: TextStyle(fontSize: 13, color: context.textGrey)),
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: List.generate(widget.services.length, (i) {
+                    final name = widget.services[i]['name'] as String;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(name, style: TextStyle(fontSize: 14, color: context.textDark, fontWeight: FontWeight.w500))),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 110,
+                            child: TextField(
+                              controller: _controllers[i],
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(fontSize: 14, color: context.textDark),
+                              decoration: InputDecoration(
+                                hintText: 'KES',
+                                hintStyle: TextStyle(color: context.textGrey),
+                                filled: true,
+                                fillColor: context.surface,
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: context.divider)),
+                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: context.divider)),
+                                focusedBorder: const OutlineInputBorder(
+                                  borderRadius: BorderRadius.all(Radius.circular(10)),
+                                  borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _save,
+                style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                child: _saving
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Save Prices'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Customer Reviews Section ───────────────────────────────────────────────────
+
+class _CustomerReviewsSection extends ConsumerWidget {
+  const _CustomerReviewsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reviewsAsync = ref.watch(mechanicReviewsProvider);
+
     return _SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionHeader(icon: Icons.star_rounded, label: 'Customer Reviews'),
+          const _SectionHeader(icon: Icons.star_rounded, label: 'Customer Reviews'),
           const SizedBox(height: 4),
           Text('Real feedback from verified customers', style: TextStyle(fontSize: 11, color: context.textGrey)),
           const SizedBox(height: 14),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                children: [
-                  Icon(Icons.star_border_rounded, size: 36, color: context.textGrey),
-                  const SizedBox(height: 8),
-                  Text('No reviews yet', style: TextStyle(fontSize: 13, color: context.textGrey)),
-                ],
-              ),
-            ),
+          reviewsAsync.when(
+            loading: () => const Center(child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )),
+            error: (_, _) => _RetryTile(onRetry: () => ref.invalidate(mechanicReviewsProvider)),
+            data: (reviews) {
+              if (reviews.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Column(
+                      children: [
+                        Icon(Icons.star_border_rounded, size: 36, color: context.textGrey),
+                        const SizedBox(height: 8),
+                        Text('No reviews yet', style: TextStyle(fontSize: 13, color: context.textGrey)),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                children: reviews.map((r) => _ReviewCard(review: r)).toList(),
+              );
+            },
           ),
         ],
       ),
@@ -908,6 +1367,81 @@ class _CustomerReviewsSection extends StatelessWidget {
   }
 }
 
+class _ReviewCard extends StatelessWidget {
+  const _ReviewCard({required this.review});
+  final Map<String, dynamic> review;
+
+  String _formatDate(String? raw) {
+    if (raw == null) return '';
+    final dt = DateTime.tryParse(raw);
+    if (dt == null) return '';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = review['customer_name'] as String? ?? 'Customer';
+    final rating = (review['rating'] as num?)?.toInt() ?? 5;
+    final comment = review['comment'] as String? ?? '';
+    final date = _formatDate(review['created_at'] as String?);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: context.bg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: context.divider),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: context.primarySurface,
+                  child: Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.textDark)),
+                      Row(
+                        children: [
+                          ...List.generate(5, (i) => Icon(
+                            i < rating ? Icons.star_rounded : Icons.star_border_rounded,
+                            size: 12,
+                            color: AppColors.warning,
+                          )),
+                          if (date.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Text(date, style: TextStyle(fontSize: 10, color: context.textGrey)),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (comment.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(comment, style: TextStyle(fontSize: 13, color: context.textDark, height: 1.4)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 // ── Upgrade to Garage Section (mobile mechanics only) ──────────────────────────
 
@@ -951,11 +1485,10 @@ class _UpgradeToGarageSection extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 14),
-          // Benefits list
-          _UpgradeBenefit(text: 'Fundi-X Approved Garage badge'),
-          _UpgradeBenefit(text: 'Garage photos, team & equipment display'),
-          _UpgradeBenefit(text: 'Full service pricing table'),
-          _UpgradeBenefit(text: 'Higher job match priority on the platform'),
+          const _UpgradeBenefit(text: 'Fundi-X Approved Garage badge'),
+          const _UpgradeBenefit(text: 'Garage photos, team & equipment display'),
+          const _UpgradeBenefit(text: 'Full service pricing table'),
+          const _UpgradeBenefit(text: 'Higher job match priority on the platform'),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -1032,7 +1565,11 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: context.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: context.divider)),
+      decoration: BoxDecoration(
+        color: context.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.divider),
+      ),
       child: child,
     );
   }
@@ -1081,6 +1618,29 @@ class _SectionDivider extends StatelessWidget {
         ),
         Expanded(child: Divider(color: context.divider)),
       ],
+    );
+  }
+}
+
+class _RetryTile extends StatelessWidget {
+  const _RetryTile({required this.onRetry});
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onRetry,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.refresh_rounded, size: 16, color: context.textGrey),
+            const SizedBox(width: 6),
+            Text('Tap to retry', style: TextStyle(fontSize: 13, color: context.textGrey)),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1161,7 +1721,7 @@ class _OperatingStatusSheet extends StatelessWidget {
 class _SkillsEditorSheet extends StatefulWidget {
   const _SkillsEditorSheet({required this.currentSkills, required this.onSave});
   final List<String> currentSkills;
-  final ValueChanged<List<String>> onSave;
+  final Future<void> Function(List<String>) onSave;
 
   @override
   State<_SkillsEditorSheet> createState() => _SkillsEditorSheetState();
@@ -1169,6 +1729,7 @@ class _SkillsEditorSheet extends StatefulWidget {
 
 class _SkillsEditorSheetState extends State<_SkillsEditorSheet> {
   late final Set<String> _selected;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -1216,8 +1777,7 @@ class _SkillsEditorSheetState extends State<_SkillsEditorSheet> {
                   final sel = _selected.contains(skill);
                   return GestureDetector(
                     onTap: () => setState(() {
-                      if (sel) { _selected.remove(skill); }
-                      else { _selected.add(skill); }
+                      if (sel) { _selected.remove(skill); } else { _selected.add(skill); }
                     }),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 130),
@@ -1244,9 +1804,18 @@ class _SkillsEditorSheetState extends State<_SkillsEditorSheet> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _selected.isNotEmpty ? () { widget.onSave(_selected.toList()); Navigator.pop(context); } : null,
+              onPressed: (_selected.isNotEmpty && !_saving)
+                  ? () async {
+                      setState(() => _saving = true);
+                      final nav = Navigator.of(context);
+                      await widget.onSave(_selected.toList());
+                      if (mounted) nav.pop();
+                    }
+                  : null,
               style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-              child: const Text('Save Skills'),
+              child: _saving
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Save Skills'),
             ),
           ),
         ],
@@ -1314,7 +1883,11 @@ class _PayoutSettingsSheetState extends State<_PayoutSettingsSheet> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.75)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              gradient: LinearGradient(
+                colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.75)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -1354,7 +1927,10 @@ class _PayoutSettingsSheetState extends State<_PayoutSettingsSheet> {
               fillColor: context.surface,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: context.divider)),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: context.divider)),
-              focusedBorder: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
+              focusedBorder: const OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+                borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+              ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
             style: TextStyle(fontSize: 14, color: context.textDark),
@@ -1432,7 +2008,11 @@ class _SignOutButton extends StatelessWidget {
             actions: [
               TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, minimumSize: Size.zero, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                ),
                 onPressed: () => Navigator.pop(context),
                 child: Text(t('sign_out', lang)),
               ),
@@ -1451,7 +2031,11 @@ class _DevRoleSwitcherButton extends StatelessWidget {
       onTap: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const RoleSwitcherScreen())),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF2D2D4E))),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF2D2D4E)),
+        ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
