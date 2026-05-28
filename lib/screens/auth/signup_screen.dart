@@ -40,13 +40,15 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     super.dispose();
   }
 
-  // 0 = empty, 1 = too short, 2 = ok length but no digit, 3 = strong
+  // 0=empty 1=too short 2=needs uppercase 3=needs lowercase 4=needs digit 5=strong
   int get _strength {
     final p = _passwordCtrl.text;
     if (p.isEmpty) return 0;
     if (p.length < 8) return 1;
-    if (!p.contains(RegExp(r'[0-9]'))) return 2;
-    return 3;
+    if (!p.contains(RegExp(r'[A-Z]'))) return 2;
+    if (!p.contains(RegExp(r'[a-z]'))) return 3;
+    if (!p.contains(RegExp(r'[0-9]'))) return 4;
+    return 5;
   }
 
   String? get _nameError {
@@ -67,9 +69,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   String? get _passwordError {
     if (!_submitted) return null;
-    if (_passwordCtrl.text.length < 8) {
-      return 'Password must be at least 8 characters';
-    }
+    final p = _passwordCtrl.text;
+    if (p.length < 8) return 'Password must be at least 8 characters';
+    if (!p.contains(RegExp(r'[A-Z]'))) return 'Add an uppercase letter';
+    if (!p.contains(RegExp(r'[a-z]'))) return 'Add a lowercase letter';
+    if (!p.contains(RegExp(r'[0-9]'))) return 'Add a number';
     return null;
   }
 
@@ -276,35 +280,41 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
 class _StrengthBar extends StatelessWidget {
   const _StrengthBar({required this.strength});
-  final int strength; // 0–3
+  final int strength; // 0–5
 
   @override
   Widget build(BuildContext context) {
     if (strength == 0) return const SizedBox.shrink();
 
     final color = switch (strength) {
-      1 => AppColors.error,
-      2 => AppColors.warning,
+      1 || 2 => AppColors.error,
+      3 || 4 => AppColors.warning,
       _ => AppColors.success,
     };
     final label = switch (strength) {
       1 => 'Too short',
-      2 => 'Add a number to strengthen',
+      2 => 'Add an uppercase letter',
+      3 => 'Add a lowercase letter',
+      4 => 'Add a number',
       _ => 'Strong',
     };
+
+    // 4 segments mapped to 5 strength levels: fill proportionally
+    const segments = 4;
+    final filled = (strength / 5 * segments).round().clamp(1, segments);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          children: List.generate(3, (i) {
+          children: List.generate(segments, (i) {
             return Expanded(
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
                 height: 3,
-                margin: EdgeInsets.only(right: i < 2 ? 5 : 0),
+                margin: EdgeInsets.only(right: i < segments - 1 ? 5 : 0),
                 decoration: BoxDecoration(
-                  color: i < strength ? color : AppColors.divider,
+                  color: i < filled ? color : AppColors.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),

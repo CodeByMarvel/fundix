@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const { verifyToken } = require('../middleware/authMiddleware');
 const { requireAdmin } = require('../middleware/adminMiddleware');
 const { listPending, listAll, approve, reject, updateLevel } = require('../controllers/adminController');
 
-router.use(requireAdmin);
+// Requires a valid Supabase JWT AND the x-admin-secret header
+router.use(verifyToken, requireAdmin);
 
 router.get('/mechanics/pending',         listPending);
 router.get('/mechanics',                 listAll);

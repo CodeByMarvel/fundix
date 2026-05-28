@@ -22,6 +22,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10kb' }));
 
+// Generic fallback for /auth routes not covered by per-route limiters
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,

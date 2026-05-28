@@ -99,7 +99,31 @@ class AuthService {
       );
       return null;
     } on AuthException catch (e) {
-      return e.message;
+      return _friendlyError(e);
+    } catch (_) {
+      return 'Connection error. Please try again.';
+    }
+  }
+
+  /// Sends a password-reset email. Returns an error string or null on success.
+  /// Always returns null for unknown emails to prevent account enumeration.
+  static Future<String?> sendPasswordResetEmail(String email) async {
+    final trimmed = email.trim().toLowerCase();
+    if (trimmed.isEmpty) return 'Email is required';
+    try {
+      await _auth.resetPasswordForEmail(
+        trimmed,
+        redirectTo: 'fundix://reset-password/',
+      );
+      return null;
+    } on AuthException catch (e) {
+      final msg = e.message.toLowerCase();
+      // Never reveal whether the email exists in the system
+      if (msg.contains('not found') || msg.contains('no user')) return null;
+      if (msg.contains('too many') || msg.contains('rate limit')) {
+        return 'Too many attempts. Please wait a moment and try again.';
+      }
+      return 'Something went wrong. Please try again.';
     } catch (_) {
       return 'Connection error. Please try again.';
     }
@@ -164,10 +188,19 @@ class AuthService {
 
   static String? _validateCredentials(String email, String password) {
     if (email.trim().isEmpty) return 'Email is required';
-    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.trim())) {
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$').hasMatch(email.trim())) {
       return 'Enter a valid email address';
     }
     if (password.length < 8) return 'Password must be at least 8 characters';
+    if (!RegExp(r'[A-Z]').hasMatch(password)) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (!RegExp(r'[a-z]').hasMatch(password)) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    if (!RegExp(r'[0-9]').hasMatch(password)) {
+      return 'Password must contain at least one number';
+    }
     return null;
   }
 }
