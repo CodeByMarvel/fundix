@@ -4,7 +4,7 @@ async function signupUser(email, password, role = 'customer') {
   const { data, error } = await supabase.auth.admin.createUser({
     email,
     password,
-    email_confirm: true,
+    email_confirm: false, // user must verify their email before signing in
   });
   if (error) throw error;
 

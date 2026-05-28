@@ -355,3 +355,244 @@ create policy "reviews: customer insert" on public.reviews for insert
 
 -- FCM tokens: own device tokens only
 create policy "fcm_tokens: own all" on public.fcm_tokens for all using (auth.uid() = user_id);
+
+-- ── Job Escrow Account ────────────────────────────────────────────────────────
+-- One row per job. Holds the call-out deposit (travel fee + inspection fee)
+-- between customer payment and job resolution.
+create table public.job_escrow (
+  id              uuid          default gen_random_uuid() primary key,
+  request_id      uuid          not null references public.requests(id) on delete cascade unique,
+  customer_id     uuid          not null references public.profiles(id),
+  mechanic_id     uuid          references public.mechanics(id),
+  travel_fee      numeric(10,2) not null check (travel_fee >= 0),
+  inspection_fee  numeric(10,2) not null check (inspection_fee >= 0),
+  balance_held    numeric(10,2) not null default 0 check (balance_held >= 0),
+  status          text          not null default 'awaiting_payment'
+                  check (status in (
+                    'awaiting_payment',   -- STK push sent, deposit not yet confirmed
+                    'funded',             -- deposit confirmed, mechanic not yet dispatched
+                    'active',             -- mechanic en route, funds held
+                    'partially_released', -- some funds paid out, remainder still held
+                    'released',           -- all funds paid out to mechanic
+                    'refunded',           -- full deposit returned to customer
+                    'disputed'            -- admin hold pending manual review
+                  )),
+  mpesa_reference text,
+  created_at      timestamptz   default now(),
+  updated_at      timestamptz   default now()
+);
+
+create index escrow_request_idx  on public.job_escrow(request_id);
+create index escrow_customer_idx on public.job_escrow(customer_id);
+create index escrow_mechanic_idx on public.job_escrow(mechanic_id);
+
+-- ── Escrow Ledger ─────────────────────────────────────────────────────────────
+-- Every money event for a job. A trigger keeps job_escrow.balance_held in sync.
+create table public.escrow_entries (
+  id          uuid          default gen_random_uuid() primary key,
+  escrow_id   uuid          not null references public.job_escrow(id) on delete cascade,
+  entry_type  text          not null check (entry_type in (
+                'deposit',              -- customer pays call-out fee in
+                'release_to_mechanic',  -- escrow pays out to mechanic
+                'refund_to_customer',   -- escrow refunds customer
+                'platform_fee'          -- Fundix platform cut before payout
+              )),
+  amount      numeric(10,2) not null check (amount > 0),
+  description text,
+  payment_ref text,
+  created_at  timestamptz   default now()
+);
+
+create index entries_escrow_idx on public.escrow_entries(escrow_id);
+
+-- Trigger: keeps job_escrow.balance_held and status in sync after every entry.
+create or replace function sync_escrow_balance()
+returns trigger language plpgsql as $$
+declare
+  v_escrow      public.job_escrow%rowtype;
+  v_new_balance numeric(10,2);
+  v_new_status  text;
+begin
+  select * into v_escrow from public.job_escrow where id = new.escrow_id for update;
+
+  if new.entry_type = 'deposit' then
+    v_new_balance := v_escrow.balance_held + new.amount;
+    v_new_status  := case
+                       when v_escrow.status = 'awaiting_payment' then 'funded'
+                       else v_escrow.status
+                     end;
+  else
+    -- Debit: release, refund, or platform fee
+    v_new_balance := greatest(v_escrow.balance_held - new.amount, 0);
+
+    if v_new_balance = 0 then
+      v_new_status := case
+                        when new.entry_type = 'refund_to_customer' then 'refunded'
+                        else 'released'
+                      end;
+    elsif v_escrow.status not in ('released', 'refunded', 'disputed') then
+      v_new_status := 'partially_released';
+    else
+      v_new_status := v_escrow.status;
+    end if;
+  end if;
+
+  update public.job_escrow
+  set balance_held = v_new_balance,
+      status       = v_new_status
+  where id = new.escrow_id;
+
+  return new;
+end;
+$$;
+
+create trigger escrow_balance_sync
+  after insert on public.escrow_entries
+  for each row execute function sync_escrow_balance();
+
+create trigger job_escrow_updated_at
+  before update on public.job_escrow
+  for each row execute function touch_updated_at();
+
+-- ── Escrow RPCs ───────────────────────────────────────────────────────────────
+
+-- Creates the escrow account when the customer confirms the call-out fee.
+-- Returns the new escrow id so the client can reference it.
+create or replace function initialise_escrow(
+  p_request_id     uuid,
+  p_customer_id    uuid,
+  p_travel_fee     numeric,
+  p_inspection_fee numeric
+)
+returns uuid language plpgsql security definer as $$
+declare
+  v_id uuid;
+begin
+  insert into public.job_escrow(request_id, customer_id, travel_fee, inspection_fee)
+  values (p_request_id, p_customer_id, p_travel_fee, p_inspection_fee)
+  returning id into v_id;
+  return v_id;
+end;
+$$;
+
+-- Records the M-Pesa deposit after STK push confirmation.
+create or replace function fund_escrow(
+  p_escrow_id uuid,
+  p_amount    numeric,
+  p_mpesa_ref text
+)
+returns void language plpgsql security definer as $$
+begin
+  update public.job_escrow
+  set mpesa_reference = p_mpesa_ref
+  where id = p_escrow_id;
+
+  insert into public.escrow_entries(escrow_id, entry_type, amount, description, payment_ref)
+  values (p_escrow_id, 'deposit', p_amount, 'Call-out deposit', p_mpesa_ref);
+end;
+$$;
+
+-- Assigns the mechanic and marks the escrow active once dispatch is confirmed.
+create or replace function activate_escrow(
+  p_escrow_id   uuid,
+  p_mechanic_id uuid
+)
+returns void language plpgsql security definer as $$
+begin
+  update public.job_escrow
+  set mechanic_id = p_mechanic_id,
+      status      = 'active'
+  where id = p_escrow_id
+    and status = 'funded';
+end;
+$$;
+
+-- Releases an amount from escrow to the mechanic.
+-- Call twice for partial payouts (e.g. inspection fee only on rejected quote).
+create or replace function release_to_mechanic(
+  p_escrow_id   uuid,
+  p_amount      numeric,
+  p_description text default 'Released to mechanic'
+)
+returns void language plpgsql security definer as $$
+begin
+  insert into public.escrow_entries(escrow_id, entry_type, amount, description)
+  values (p_escrow_id, 'release_to_mechanic', p_amount, p_description);
+end;
+$$;
+
+-- Refunds an amount from escrow back to the customer.
+-- Use when customer cancels before dispatch or mechanic fails to arrive.
+create or replace function refund_to_customer(
+  p_escrow_id   uuid,
+  p_amount      numeric,
+  p_description text default 'Refunded to customer'
+)
+returns void language plpgsql security definer as $$
+begin
+  insert into public.escrow_entries(escrow_id, entry_type, amount, description)
+  values (p_escrow_id, 'refund_to_customer', p_amount, p_description);
+end;
+$$;
+
+-- Returns the full ledger for a request — used by customer, mechanic, and admin views.
+create or replace function get_job_ledger(p_request_id uuid)
+returns table (
+  escrow_id       uuid,
+  status          text,
+  travel_fee      numeric,
+  inspection_fee  numeric,
+  balance_held    numeric,
+  mpesa_reference text,
+  entry_type      text,
+  amount          numeric,
+  description     text,
+  payment_ref     text,
+  entry_time      timestamptz
+) language sql stable security definer as $$
+  select
+    e.id              as escrow_id,
+    e.status,
+    e.travel_fee,
+    e.inspection_fee,
+    e.balance_held,
+    e.mpesa_reference,
+    ee.entry_type,
+    ee.amount,
+    ee.description,
+    ee.payment_ref,
+    ee.created_at     as entry_time
+  from public.job_escrow e
+  left join public.escrow_entries ee on ee.escrow_id = e.id
+  where e.request_id = p_request_id
+  order by ee.created_at asc;
+$$;
+
+-- ── Escrow RLS ────────────────────────────────────────────────────────────────
+
+alter table public.job_escrow    enable row level security;
+alter table public.escrow_entries enable row level security;
+
+-- Customer sees their own escrow; mechanic sees escrow tied to their job.
+create policy "escrow: customer read"
+  on public.job_escrow for select
+  using (auth.uid() = customer_id);
+
+create policy "escrow: mechanic read"
+  on public.job_escrow for select
+  using (auth.uid() = mechanic_id);
+
+-- Ledger entries inherit visibility from the parent escrow row.
+create policy "entries: customer read"
+  on public.escrow_entries for select
+  using (exists (
+    select 1 from public.job_escrow e
+    where e.id = escrow_id and e.customer_id = auth.uid()
+  ));
+
+create policy "entries: mechanic read"
+  on public.escrow_entries for select
+  using (exists (
+    select 1 from public.job_escrow e
+    where e.id = escrow_id and e.mechanic_id = auth.uid()
+  ));
