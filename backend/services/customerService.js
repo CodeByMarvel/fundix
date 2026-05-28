@@ -1,13 +1,25 @@
 const supabase = require('../firebase/firebaseConfig');
 
-async function getCustomerProfile(customerId) {
+async function getCustomerProfile(customerId, { name, email } = {}) {
   const { data, error } = await supabase
     .from('profiles')
     .select('id, name, phone, avatar_url')
     .eq('id', customerId)
-    .single();
+    .maybeSingle();
   if (error) throw error;
-  return data;
+
+  if (data) return data;
+
+  // Profile row missing (Supabase trigger may not have fired for this user).
+  // Upsert now so the app never sees a "no profile" error state.
+  const fallbackName = name ?? (email ? email.split('@')[0] : 'User');
+  const { data: created, error: ce } = await supabase
+    .from('profiles')
+    .upsert({ id: customerId, role: 'customer', name: fallbackName }, { onConflict: 'id' })
+    .select('id, name, phone, avatar_url')
+    .single();
+  if (ce) throw ce;
+  return created;
 }
 
 async function updateCustomerProfile(customerId, { name, phone }) {

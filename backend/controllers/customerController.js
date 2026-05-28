@@ -8,7 +8,10 @@ const {
 
 async function getProfile(req, res, next) {
   try {
-    const profile = await getCustomerProfile(req.user.uid);
+    const profile = await getCustomerProfile(req.user.uid, {
+      name: req.user.name,
+      email: req.user.email,
+    });
     res.json(profile);
   } catch (err) {
     next(err);
