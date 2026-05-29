@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import '../models/app_user.dart';
@@ -91,13 +93,29 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       await CustomerApiService.getProfile();
       state = AuthState.authenticated(user, token);
-    } catch (_) {
+    } on TimeoutException {
       state = AuthState(
         status: AuthStatus.profileError,
         user: user,
         sessionToken: token,
         profileErrorMessage:
-            'Could not connect to your profile. Check your connection and try again.',
+            'Server is taking too long to respond. Tap "Try again" in a moment.',
+      );
+    } on SocketException {
+      state = AuthState(
+        status: AuthStatus.profileError,
+        user: user,
+        sessionToken: token,
+        profileErrorMessage:
+            'No internet connection. Check your network and try again.',
+      );
+    } catch (e) {
+      debugPrint('[Auth] profile fetch failed: $e');
+      state = AuthState(
+        status: AuthStatus.profileError,
+        user: user,
+        sessionToken: token,
+        profileErrorMessage: 'Could not load your profile. ($e)',
       );
     }
   }

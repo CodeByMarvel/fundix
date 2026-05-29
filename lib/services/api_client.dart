@@ -1,20 +1,16 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/app_config.dart';
 
 // Single point of contact for all calls to the Fundi-X backend.
 //
-// Every request automatically carries the verified Supabase JWT in the
-// Authorization header. The backend MUST verify this token using the Supabase
-// JWT secret (or the Supabase admin client), never the anon key.
-//
-// Pattern on your backend:
-//   1. Receive Bearer token from this client
-//   2. Verify with Supabase: supabase.auth.getUser(token)
-//   3. Read role from user.user_metadata (or a roles table for production)
-//   4. Enforce authorization and return business data
+// Every request automatically carries the verified Supabase JWT and
+// enforces a 15-second timeout so a sleeping Render instance can't
+// block the UI indefinitely.
 class ApiClient {
+  static const _timeout = Duration(seconds: 15);
+
   static Map<String, String> _headers() {
     final token =
         Supabase.instance.client.auth.currentSession?.accessToken;
@@ -29,20 +25,24 @@ class ApiClient {
       Uri.parse('${AppConfig.backendUrl}$path');
 
   static Future<http.Response> get(String path) async =>
-      http.get(_uri(path), headers: _headers());
+      http.get(_uri(path), headers: _headers()).timeout(_timeout);
 
   static Future<http.Response> post(
     String path,
     Map<String, dynamic> body,
   ) async =>
-      http.post(_uri(path), headers: _headers(), body: jsonEncode(body));
+      http
+          .post(_uri(path), headers: _headers(), body: jsonEncode(body))
+          .timeout(_timeout);
 
   static Future<http.Response> patch(
     String path,
     Map<String, dynamic> body,
   ) async =>
-      http.patch(_uri(path), headers: _headers(), body: jsonEncode(body));
+      http
+          .patch(_uri(path), headers: _headers(), body: jsonEncode(body))
+          .timeout(_timeout);
 
   static Future<http.Response> delete(String path) async =>
-      http.delete(_uri(path), headers: _headers());
+      http.delete(_uri(path), headers: _headers()).timeout(_timeout);
 }

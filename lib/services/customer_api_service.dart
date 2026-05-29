@@ -7,8 +7,15 @@ class CustomerApiService {
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
-    final b = jsonDecode(response.body) as Map<String, dynamic>;
-    throw Exception(b['error'] ?? 'Failed to fetch profile');
+    // Extract a useful message regardless of whether the body is JSON or HTML
+    String msg;
+    try {
+      final b = jsonDecode(response.body) as Map<String, dynamic>;
+      msg = b['error'] as String? ?? 'HTTP ${response.statusCode}';
+    } catch (_) {
+      msg = 'HTTP ${response.statusCode}';
+    }
+    throw Exception(msg);
   }
 
   static Future<Map<String, dynamic>> updateProfile({
