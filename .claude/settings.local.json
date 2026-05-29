@@ -10,7 +10,12 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Sort-Object)",
       "Bash(flutter analyze *)",
-      "Bash(dart analyze *)"
+      "Bash(dart analyze *)",
+      "Bash(if [ ! -d \"c:/Users/Joydoty/Desktop/fundix/assets\" ]; then mkdir -p \"c:/Users/Joydoty/Desktop/fundix/assets\"; fi && cp \"C:/Users/Joydoty/Downloads/ChatGPT Image May 22, 2026, 05_45_57 PM.png\" \"c:/Users/Joydoty/Desktop/fundix/assets/app_icon.png\" && echo \"Copied\")",
+      "Bash(dart run *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Joydoty\\Downloads"
     ]
   }
 }

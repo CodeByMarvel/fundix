@@ -4,6 +4,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme_ext.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/locale_provider.dart';
+import '../mechanic/onboarding/mechanic_onboarding_flow.dart';
 
 class CustomerSettingsScreen extends ConsumerStatefulWidget {
   const CustomerSettingsScreen({super.key});
@@ -49,6 +50,14 @@ class _CustomerSettingsScreenState extends ConsumerState<CustomerSettingsScreen>
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 48),
         children: [
+          _BecomeProfessionalBanner(onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const MechanicOnboardingFlow(),
+              ),
+            );
+          }),
+          const SizedBox(height: 20),
           _sectionLabel('App Preferences'),
           _SettingsCard(children: [
             _ToggleTile(
@@ -1084,6 +1093,76 @@ class _CustomerSettingsScreenState extends ConsumerState<CustomerSettingsScreen>
 }
 
 // ─── Sub-widgets ──────────────────────────────────────────────────────────────
+
+class _BecomeProfessionalBanner extends StatelessWidget {
+  const _BecomeProfessionalBanner({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFF6B35), Color(0xFFFF8C61)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.25),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.workspace_premium_rounded,
+                  color: Colors.white, size: 26),
+            ),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Become a Fundix Professional',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Apply to join our verified mechanic network',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white70,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded,
+                color: Colors.white70, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _SettingsCard extends StatelessWidget {
   final List<Widget> children;
