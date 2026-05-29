@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
-import '../services/customer_api_service.dart';
+import '../services/customer_api_service.dart' show CustomerApiService, UnauthorizedException;
 
 enum AuthStatus {
   loading,
@@ -93,6 +93,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       await CustomerApiService.getProfile();
       state = AuthState.authenticated(user, token);
+    } on UnauthorizedException {
+      // Token is invalid or user was deleted — clear local session and go to login
+      await AuthService.signOut();
+      state = AuthState.unauthenticated;
     } on TimeoutException {
       state = AuthState(
         status: AuthStatus.profileError,

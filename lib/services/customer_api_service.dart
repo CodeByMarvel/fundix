@@ -1,13 +1,17 @@
                                                               import 'dart:convert';
 import 'api_client.dart';
 
+class UnauthorizedException implements Exception {
+  const UnauthorizedException();
+}
+
 class CustomerApiService {
   static Future<Map<String, dynamic>> getProfile() async {
     final response = await ApiClient.get('/customers/profile');
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
-    // Extract a useful message regardless of whether the body is JSON or HTML
+    if (response.statusCode == 401) throw const UnauthorizedException();
     String msg;
     try {
       final b = jsonDecode(response.body) as Map<String, dynamic>;
