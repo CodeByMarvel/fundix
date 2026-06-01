@@ -13,6 +13,7 @@ const customerRoutes = require('./routes/customerRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const { errorHandler } = require('./middleware/errorMiddleware');
+const { startAutoReleaseScheduler } = require('./services/escrowReleaseService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -47,4 +48,5 @@ app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Fundix backend running on port ${PORT}`);
+  startAutoReleaseScheduler();
 });

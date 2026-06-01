@@ -1,5 +1,6 @@
 const supabase = require('../firebase/firebaseConfig');
 const { parsePagination } = require('../utils/pagination');
+const { b2cPayment, normalisePhone } = require('./mpesaService');
 
 // ── Tier mapping ──────────────────────────────────────────────────────────────
 // Tier 1 = Mobile Technician ('mobile'), Tier 2 = Garage Partner ('garage')
@@ -458,11 +459,22 @@ async function getPaymentByRequest(requestId) {
   };
 }
 
-// D3 — admin manual release to mechanic
+// D3 — admin manual release to mechanic (records ledger entry + fires B2C payout)
 async function releaseEscrow(requestId, amount, description) {
-  const escrow = await _getEscrowByRequest(requestId);
+  const { data: escrow, error: fetchErr } = await supabase
+    .from('job_escrow')
+    .select('id, status, balance_held, mechanic_phone')
+    .eq('request_id', requestId)
+    .single();
+  if (fetchErr) {
+    if (fetchErr.code === 'PGRST116') {
+      throw Object.assign(new Error('No escrow record found for this request'), { status: 404 });
+    }
+    throw fetchErr;
+  }
 
-  if (!['funded', 'active', 'partially_released'].includes(escrow.status)) {
+  const RELEASABLE = ['funded', 'active', 'pending_release', 'partially_released', 'disputed'];
+  if (!RELEASABLE.includes(escrow.status)) {
     throw Object.assign(
       new Error(`Cannot release escrow with status '${escrow.status}'`),
       { status: 409 }
@@ -474,12 +486,29 @@ async function releaseEscrow(requestId, amount, description) {
     throw Object.assign(new Error('Release amount must be greater than zero'), { status: 400 });
   }
 
+  // Record the ledger entry and mark released in DB
   const { error } = await supabase.rpc('release_to_mechanic', {
     p_escrow_id:   escrow.id,
     p_amount:      releaseAmount,
     p_description: description ?? 'Admin manual release',
   });
   if (error) throw error;
+
+  await supabase
+    .from('job_escrow')
+    .update({ released_at: new Date().toISOString(), released_via: 'admin' })
+    .eq('id', escrow.id);
+
+  // Fire B2C payout to mechanic's phone
+  if (escrow.mechanic_phone) {
+    try {
+      const phone = normalisePhone(escrow.mechanic_phone);
+      await b2cPayment(phone, releaseAmount, requestId, description ?? 'Admin manual release');
+    } catch (payErr) {
+      // Log but don't fail the admin action — payout can be retried separately
+      console.error(`[escrow] B2C payout failed for request ${requestId}:`, payErr.message);
+    }
+  }
 
   return { request_id: requestId, action: 'released', amount_released: releaseAmount };
 }
