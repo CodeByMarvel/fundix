@@ -5,6 +5,8 @@ import '../../theme/app_theme_ext.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/locale_provider.dart';
 import '../mechanic/onboarding/mechanic_onboarding_flow.dart';
+import '../../providers/mechanic_application_provider.dart';
+import '../../providers/auth_provider.dart';
 
 class CustomerSettingsScreen extends ConsumerStatefulWidget {
   const CustomerSettingsScreen({super.key});
@@ -50,13 +52,37 @@ class _CustomerSettingsScreenState extends ConsumerState<CustomerSettingsScreen>
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 48),
         children: [
-          _BecomeProfessionalBanner(onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
+          ref.watch(mechanicApplicationStatusProvider).when(
+            loading: () => const SizedBox(
+              height: 80,
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
+            error: (_, e) => _BecomeProfessionalBanner(onTap: () {
+              Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => const MechanicOnboardingFlow(),
-              ),
-            );
-          }),
+              ));
+            }),
+            data: (status) {
+              if (status == 'approved') {
+                return _ApplicationApprovedBanner(
+                  onActivate: () => ref.read(authProvider.notifier).refreshRole(),
+                );
+              }
+              if (status == 'pending') return const _ApplicationPendingBanner();
+              if (status == 'rejected') {
+                return _ApplicationRejectedBanner(onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const MechanicOnboardingFlow(),
+                  ));
+                });
+              }
+              return _BecomeProfessionalBanner(onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const MechanicOnboardingFlow(),
+                ));
+              });
+            },
+          ),
           const SizedBox(height: 20),
           _sectionLabel('App Preferences'),
           _SettingsCard(children: [
@@ -1157,6 +1183,199 @@ class _BecomeProfessionalBanner extends StatelessWidget {
             ),
             const Icon(Icons.arrow_forward_ios_rounded,
                 color: Colors.white70, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ApplicationApprovedBanner extends StatelessWidget {
+  const _ApplicationApprovedBanner({required this.onActivate});
+  final VoidCallback onActivate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF22C55E).withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.verified_rounded,
+                color: Colors.white, size: 26),
+          ),
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Application Approved!',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Tap to activate your Mechanic account.',
+                  style: TextStyle(
+                      fontSize: 12, color: Colors.white70, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: onActivate,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text(
+                'Switch',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF16A34A)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ApplicationPendingBanner extends StatelessWidget {
+  const _ApplicationPendingBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.hourglass_top_rounded,
+                color: AppColors.warning, size: 24),
+          ),
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Application Under Review',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.warning,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Our team will get back to you within 2–5 business days.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.warning,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ApplicationRejectedBanner extends StatelessWidget {
+  const _ApplicationRejectedBanner({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.refresh_rounded,
+                  color: AppColors.error, size: 24),
+            ),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Application Not Approved',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.error,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Tap to review requirements and reapply.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.error,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded,
+                color: AppColors.error, size: 14),
           ],
         ),
       ),

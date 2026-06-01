@@ -112,4 +112,84 @@ async function upgradeToGarage(mechanicId) {
   return data;
 }
 
-module.exports = { getMechanicProfile, setAvailability, setOperatingStatus, updateLocation, upgradeToGarage };
+/**
+ * Submit (or resubmit) a mechanic application.
+ * Any authenticated user can call this — role is still 'customer' at this point.
+ * On approval, adminService.approveMechanic() flips the role to 'mechanic'.
+ */
+async function submitApplication(userId, body) {
+  const {
+    tier, nationalId,
+    kraPin, kraDocUrl,
+    zones, radiusKm,
+    garageName, garageAddress, googleMapsLink,
+    idPhotoUrl, selfieUrl,
+    toolsPhotoUrls, workspacePhotoUrls, exteriorPhotoUrls,
+  } = body;
+
+  if (!tier || !nationalId) {
+    throw Object.assign(new Error('tier and nationalId are required'), { status: 400 });
+  }
+  const mechanicType = tier === 2 || tier === '2' ? 'garage' : 'mobile';
+
+  // Store photos and document URLs in a flexible metadata object
+  const applicationMetadata = {
+    kra_doc_url:           kraDocUrl        || null,
+    id_photo_url:          idPhotoUrl       || null,
+    selfie_url:            selfieUrl        || null,
+    tools_photo_urls:      toolsPhotoUrls   || [],
+    workspace_photo_urls:  workspacePhotoUrls || [],
+    exterior_photo_urls:   exteriorPhotoUrls  || [],
+    submitted_at:          new Date().toISOString(),
+  };
+
+  const patch = {
+    mechanic_type:        mechanicType,
+    application_status:   'pending',
+    application_metadata: applicationMetadata,
+    service_zones:        zones        || [],
+    work_radius_km:       radiusKm     || null,
+    garage_name:          garageName   || null,
+    garage_address:       garageAddress || null,
+    google_maps_link:     googleMapsLink || null,
+    updated_at:           new Date().toISOString(),
+  };
+  // Tier 2 uses a KRA PIN text; tier 1 uses a KRA document photo (URL in metadata)
+  if (kraPin) patch.kra_pin = kraPin;
+
+  // Check for an existing row — allow resubmission if previously rejected
+  const { data: existing } = await supabase
+    .from('mechanics')
+    .select('id, application_status')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (existing) {
+    if (existing.application_status === 'approved') {
+      throw Object.assign(new Error('Your application has already been approved'), { status: 409 });
+    }
+    if (existing.application_status === 'pending') {
+      throw Object.assign(new Error('Your application is already under review'), { status: 409 });
+    }
+    // Rejected — allow resubmission
+    const { data, error } = await supabase
+      .from('mechanics')
+      .update({ ...patch, rejection_reason: null })
+      .eq('id', userId)
+      .select('id, application_status')
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  // First-time application — insert new row
+  const { data, error } = await supabase
+    .from('mechanics')
+    .insert({ id: userId, ...patch })
+    .select('id, application_status')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+module.exports = { getMechanicProfile, setAvailability, setOperatingStatus, updateLocation, upgradeToGarage, submitApplication };

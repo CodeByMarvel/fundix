@@ -11,6 +11,7 @@ const zoneRoutes = require('./routes/zoneRoutes');
 const mechanicRoutes = require('./routes/mechanicRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const { errorHandler } = require('./middleware/errorMiddleware');
 
 const app = express();
@@ -40,6 +41,7 @@ app.use('/zones', zoneRoutes);
 app.use('/mechanics', mechanicRoutes);
 app.use('/customers', customerRoutes);
 app.use('/admin', adminRoutes);
+app.use('/payments', paymentRoutes);
 
 app.use(errorHandler);
 

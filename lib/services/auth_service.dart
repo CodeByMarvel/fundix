@@ -131,6 +131,13 @@ class AuthService {
 
   static Future<void> signOut() => _auth.signOut();
 
+  /// Forces a session refresh from Supabase so updated user_metadata (e.g. role
+  /// changed to 'mechanic' after admin approval) is reflected immediately.
+  static Future<Session?> refreshSession() async {
+    final result = await _auth.refreshSession();
+    return result.session;
+  }
+
   /// Returns the currently signed-in user, or null if there is no active session.
   static AppUser? currentUser() {
     final user = _auth.currentUser;

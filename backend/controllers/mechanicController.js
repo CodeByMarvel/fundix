@@ -4,6 +4,7 @@ const {
   setOperatingStatus,
   updateLocation,
   upgradeToGarage,
+  submitApplication,
 } = require('../services/mechanicService');
 
 async function getProfile(req, res, next) {
@@ -71,4 +72,15 @@ async function postUpgradeToGarage(req, res, next) {
   }
 }
 
-module.exports = { getProfile, patchAvailability, patchStatus, patchLocation, postUpgradeToGarage };
+// POST /mechanics/apply  (any authenticated user — role is still 'customer' at this point)
+async function postApply(req, res, next) {
+  try {
+    const result = await submitApplication(req.user.uid, req.body);
+    res.status(201).json(result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+}
+
+module.exports = { getProfile, patchAvailability, patchStatus, patchLocation, postUpgradeToGarage, postApply };

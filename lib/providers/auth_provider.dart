@@ -166,6 +166,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<String?> resendConfirmationEmail(String email) =>
       AuthService.resendConfirmationEmail(email);
 
+  /// Refresh the Supabase session to pick up metadata changes (e.g. role flipped
+  /// to 'mechanic' after admin approval) and re-route accordingly.
+  Future<void> refreshRole() async {
+    final session = await AuthService.refreshSession();
+    if (session == null) return;
+    final user = AuthService.currentUser();
+    if (user != null) await _onAuthenticated(user, session.accessToken);
+  }
+
   Future<void> signOut() async {
     await AuthService.signOut();
     state = AuthState.unauthenticated;

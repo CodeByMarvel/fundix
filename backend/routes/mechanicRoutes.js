@@ -8,9 +8,13 @@ const {
   patchStatus,
   patchLocation,
   postUpgradeToGarage,
+  postApply,
 } = require('../controllers/mechanicController');
 
-// All mechanic routes require a verified mechanic account
+// Any authenticated user can apply to become a mechanic
+router.post('/apply', verifyToken, postApply);
+
+// All routes below require a verified mechanic account
 router.use(verifyToken, requireRole('mechanic'));
 
 router.get('/',                    getProfile);
