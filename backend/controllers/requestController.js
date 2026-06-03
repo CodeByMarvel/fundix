@@ -1,4 +1,4 @@
-const { createServiceRequest, fetchRequests } = require('../services/requestService');
+const { createServiceRequest, fetchRequests, completeInspection } = require('../services/requestService');
 const supabase = require('../firebase/firebaseConfig');
 const { getReleaseBufferMinutes } = require('../services/escrowReleaseService');
 
@@ -83,4 +83,17 @@ async function confirmComplete(req, res, next) {
   }
 }
 
-module.exports = { getRequests, createRequest, completeRequest, disputeRequest, confirmComplete };
+// POST /requests/:id/inspection-complete  (mechanic only)
+// Marks Stage 1 done — starts the callout-fee auto-release buffer.
+async function inspectionComplete(req, res, next) {
+  try {
+    const bufferMinutes = getReleaseBufferMinutes();
+    const result = await completeInspection(req.user.uid, req.params.id, bufferMinutes);
+    res.json(result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+}
+
+module.exports = { getRequests, createRequest, completeRequest, disputeRequest, confirmComplete, inspectionComplete };

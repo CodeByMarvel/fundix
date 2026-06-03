@@ -5,6 +5,8 @@ const {
   updateLocation,
   upgradeToGarage,
   submitApplication,
+  getAvailableJobs,
+  acceptJob,
 } = require('../services/mechanicService');
 
 async function getProfile(req, res, next) {
@@ -83,4 +85,28 @@ async function postApply(req, res, next) {
   }
 }
 
-module.exports = { getProfile, patchAvailability, patchStatus, patchLocation, postUpgradeToGarage, postApply };
+// GET /mechanics/jobs
+// Returns all pending requests where the customer has already paid (escrow funded).
+async function getJobs(req, res, next) {
+  try {
+    const jobs = await getAvailableJobs(req.user.uid);
+    res.json(jobs);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+}
+
+// POST /mechanics/jobs/:id/accept
+// Mechanic claims a funded request — activates escrow, assigns themselves.
+async function postAcceptJob(req, res, next) {
+  try {
+    const result = await acceptJob(req.user.uid, req.params.id);
+    res.json(result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+}
+
+module.exports = { getProfile, patchAvailability, patchStatus, patchLocation, postUpgradeToGarage, postApply, getJobs, postAcceptJob };

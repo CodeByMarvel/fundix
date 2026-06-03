@@ -77,4 +77,43 @@ async function runDiagnosis(symptoms, vehicleInfo) {
   return parseDiagnosisResponse(raw);
 }
 
-module.exports = { createServiceRequest, fetchRequests, runDiagnosis };
+/**
+ * Mechanic marks inspection done.
+ * - Moves request status from 'accepted' → 'inspection_complete'.
+ * - Starts the callout-fee auto-release buffer on the escrow.
+ *   Customer can dispute within the buffer; otherwise funds release to mechanic automatically.
+ */
+async function completeInspection(mechanicId, requestId, bufferMinutes) {
+  // Verify the request belongs to this mechanic
+  const { data: request, error: reqErr } = await supabase
+    .from('requests')
+    .select('id, status, mechanic_id')
+    .eq('id', requestId)
+    .single();
+
+  if (reqErr?.code === 'PGRST116') throw Object.assign(new Error('Request not found'), { status: 404 });
+  if (reqErr) throw reqErr;
+
+  if (request.mechanic_id !== mechanicId) {
+    throw Object.assign(new Error('This job is not assigned to you'), { status: 403 });
+  }
+  if (request.status !== 'accepted') {
+    throw Object.assign(
+      new Error(`Cannot complete inspection — request is '${request.status}', expected 'accepted'`),
+      { status: 409 }
+    );
+  }
+
+  const { error } = await supabase.rpc('complete_inspection', {
+    p_request_id:            requestId,
+    p_release_after_minutes: bufferMinutes,
+  });
+  if (error) throw error;
+
+  return {
+    message: `Inspection complete. Callout fee releases automatically in ${bufferMinutes} minute(s) unless disputed.`,
+    autoReleaseMinutes: bufferMinutes,
+  };
+}
+
+module.exports = { createServiceRequest, fetchRequests, runDiagnosis, completeInspection };

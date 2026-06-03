@@ -21,6 +21,7 @@ const PORT = process.env.PORT || 3000;
 app.use(helmet());
 app.use(cors({
   origin: process.env.ALLOWED_ORIGIN || false,
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-secret'],
 }));
 app.use(express.json({ limit: '10kb' }));
 

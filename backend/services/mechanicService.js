@@ -192,4 +192,122 @@ async function submitApplication(userId, body) {
   return data;
 }
 
-module.exports = { getMechanicProfile, setAvailability, setOperatingStatus, updateLocation, upgradeToGarage, submitApplication };
+/**
+ * Return all pending, unassigned requests that have a funded escrow —
+ * meaning the customer has already paid the callout fee and the job is ready to claim.
+ *
+ * Mobile technicians are excluded from garage-only zones.
+ */
+async function getAvailableJobs(mechanicId) {
+  const { data: mechanic, error: me } = await supabase
+    .from('mechanics')
+    .select('mechanic_type')
+    .eq('id', mechanicId)
+    .single();
+  if (me) throw me;
+
+  // Inner join with job_escrow so only funded (paid) requests are shown
+  let q = supabase
+    .from('requests')
+    .select(
+      'id, vehicle_info, symptoms, location_lat, location_lng, location_address, ' +
+      'zone_type, call_out_fee, inspection_fee, created_at, ' +
+      'job_escrow!inner(status)'
+    )
+    .eq('status', 'pending')
+    .is('mechanic_id', null)
+    .eq('job_escrow.status', 'funded')
+    .order('created_at', { ascending: false });
+
+  if (mechanic.mechanic_type === 'mobile') {
+    q = q.neq('zone_type', 'garage_workshop');
+  }
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Mechanic claims a pending, funded request.
+ *
+ * Guards:
+ *  - Escrow must be 'funded' (customer paid).
+ *  - Request must still be 'pending' (not yet claimed).
+ *  - UPDATE uses .eq('status', 'pending') as an optimistic lock — if two mechanics
+ *    race, only one gets the row and the other gets a 409.
+ */
+async function acceptJob(mechanicId, requestId) {
+  // Confirm escrow is funded (customer paid)
+  const { data: escrow } = await supabase
+    .from('job_escrow')
+    .select('id, status')
+    .eq('request_id', requestId)
+    .maybeSingle();
+
+  if (!escrow) {
+    throw Object.assign(new Error('Customer has not initiated payment for this request'), { status: 409 });
+  }
+  if (escrow.status !== 'funded') {
+    throw Object.assign(new Error(`Cannot accept — escrow is '${escrow.status}', expected 'funded'`), { status: 409 });
+  }
+
+  // Confirm request is still claimable
+  const { data: request, error: reqErr } = await supabase
+    .from('requests')
+    .select('id, status')
+    .eq('id', requestId)
+    .single();
+
+  if (reqErr?.code === 'PGRST116') throw Object.assign(new Error('Request not found'), { status: 404 });
+  if (reqErr) throw reqErr;
+
+  if (request.status !== 'pending') {
+    throw Object.assign(
+      new Error(`Cannot accept a request with status '${request.status}'`),
+      { status: 409 }
+    );
+  }
+
+  // Fetch mechanic's phone — needed so auto-release cron can B2C them later
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('phone')
+    .eq('id', mechanicId)
+    .maybeSingle();
+
+  // Claim — optimistic lock: if another mechanic grabbed it first, 0 rows → PGRST116 → 409
+  const { data: updated, error: updateErr } = await supabase
+    .from('requests')
+    .update({ mechanic_id: mechanicId, status: 'accepted' })
+    .eq('id', requestId)
+    .eq('status', 'pending')
+    .select('id, status, mechanic_id')
+    .single();
+
+  if (updateErr?.code === 'PGRST116') {
+    throw Object.assign(new Error('Request was just accepted by another mechanic'), { status: 409 });
+  }
+  if (updateErr) throw updateErr;
+
+  // Activate escrow: records mechanic_id + phone, moves status funded → active
+  const { error: activateErr } = await supabase.rpc('activate_escrow', {
+    p_request_id:     requestId,
+    p_mechanic_id:    mechanicId,
+    p_mechanic_phone: profile?.phone ?? null,
+  });
+  if (activateErr) throw activateErr;
+
+  return updated;
+}
+
+module.exports = {
+  getMechanicProfile,
+  setAvailability,
+  setOperatingStatus,
+  updateLocation,
+  upgradeToGarage,
+  submitApplication,
+  getAvailableJobs,
+  acceptJob,
+};
