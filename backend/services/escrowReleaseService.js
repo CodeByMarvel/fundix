@@ -8,8 +8,17 @@ const RELEASE_BUFFER_MINUTES = parseInt(process.env.ESCROW_RELEASE_BUFFER_MINUTE
 // ── Auto-release a single escrow row ─────────────────────────────────────────
 async function releaseEscrow(escrow) {
   try {
-    if (!escrow.mechanic_phone || escrow.balance_held <= 0) {
-      console.warn(`[escrow] Skipping release for escrow ${escrow.id}: no phone or zero balance`);
+    if (escrow.balance_held <= 0) {
+      console.warn(`[escrow] Skipping release for escrow ${escrow.id}: zero balance`);
+      return;
+    }
+    if (!escrow.mechanic_phone) {
+      // Phone was never captured at job acceptance — money is stuck, needs admin intervention
+      console.error(
+        `[escrow] PAYOUT BLOCKED — escrow ${escrow.id} (request ${escrow.request_id}) ` +
+        `has no mechanic phone. KES ${escrow.balance_held} is stuck. ` +
+        `Admin must set mechanic phone and manually release via /admin/payments/${escrow.request_id}/release`
+      );
       return;
     }
 

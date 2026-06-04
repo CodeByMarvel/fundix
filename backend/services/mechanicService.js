@@ -269,12 +269,20 @@ async function acceptJob(mechanicId, requestId) {
     );
   }
 
-  // Fetch mechanic's phone — needed so auto-release cron can B2C them later
+  // Phone is required for B2C payout — fail here rather than silently at payout time
   const { data: profile } = await supabase
     .from('profiles')
     .select('phone')
     .eq('id', mechanicId)
     .maybeSingle();
+
+  const mechanicPhone = profile?.phone?.trim() || null;
+  if (!mechanicPhone) {
+    throw Object.assign(
+      new Error('Please add your M-Pesa phone number to your profile before accepting jobs'),
+      { status: 422 }
+    );
+  }
 
   // Claim — optimistic lock: if another mechanic grabbed it first, 0 rows → PGRST116 → 409
   const { data: updated, error: updateErr } = await supabase
@@ -294,7 +302,7 @@ async function acceptJob(mechanicId, requestId) {
   const { error: activateErr } = await supabase.rpc('activate_escrow', {
     p_request_id:     requestId,
     p_mechanic_id:    mechanicId,
-    p_mechanic_phone: profile?.phone ?? null,
+    p_mechanic_phone: mechanicPhone,
   });
   if (activateErr) throw activateErr;
 

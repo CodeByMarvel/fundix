@@ -500,14 +500,26 @@ async function releaseEscrow(requestId, amount, description) {
     .eq('id', escrow.id);
 
   // Fire B2C payout to mechanic's phone
-  if (escrow.mechanic_phone) {
-    try {
-      const phone = normalisePhone(escrow.mechanic_phone);
-      await b2cPayment(phone, releaseAmount, requestId, description ?? 'Admin manual release');
-    } catch (payErr) {
-      // Log but don't fail the admin action — payout can be retried separately
-      console.error(`[escrow] B2C payout failed for request ${requestId}:`, payErr.message);
-    }
+  if (!escrow.mechanic_phone) {
+    throw Object.assign(
+      new Error(
+        'Mechanic has no M-Pesa phone number on record. ' +
+        'Update job_escrow.mechanic_phone directly in Supabase, then retry.'
+      ),
+      { status: 422 }
+    );
+  }
+
+  try {
+    const phone = normalisePhone(escrow.mechanic_phone);
+    await b2cPayment(phone, releaseAmount, requestId, description ?? 'Admin manual release');
+  } catch (payErr) {
+    // B2C request was accepted by Safaricom but may be queued — log and surface to caller
+    console.error(`[escrow] B2C payout failed for request ${requestId}:`, payErr.message);
+    throw Object.assign(
+      new Error(`M-Pesa B2C failed: ${payErr.message}. DB entry recorded but payout not confirmed.`),
+      { status: 502 }
+    );
   }
 
   return { request_id: requestId, action: 'released', amount_released: releaseAmount };
