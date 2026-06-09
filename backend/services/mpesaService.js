@@ -76,7 +76,7 @@ async function b2cPayment(phone, amount, requestId, remarks = 'Mechanic payout')
       SecurityCredential: process.env.MPESA_B2C_SECURITY_CREDENTIAL,
       CommandID: 'BusinessPayment',
       Amount: Math.ceil(amount),
-      PartyA: process.env.MPESA_SHORTCODE,
+      PartyA: process.env.MPESA_B2C_SHORTCODE || process.env.MPESA_SHORTCODE,
       PartyB: phone,
       Remarks: remarks,
       QueueTimeOutURL: `${process.env.MPESA_CALLBACK_URL}/payments/b2c/timeout`,
